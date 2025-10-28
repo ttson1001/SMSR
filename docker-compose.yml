@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   db:
     image: mysql:8.0
@@ -57,5 +55,6 @@ services:
     restart: unless-stopped
 
 volumes:
+  db_data:
   certbot-etc:
   certbot-var:
