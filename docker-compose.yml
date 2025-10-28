@@ -1,0 +1,61 @@
+version: "3.8"
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: smrs_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: smrs
+      MYSQL_USER: smrs_user
+      MYSQL_PASSWORD: smrs_pass
+      MYSQL_ROOT_PASSWORD: root_pass
+    volumes:
+      - db_data:/var/lib/mysql
+    expose:
+      - "3306"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smrs_service_app
+    depends_on:
+      - db
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/smrs?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: smrs_user
+      SPRING_DATASOURCE_PASSWORD: smrs_pass
+      SPRING_PROFILES_ACTIVE: docker
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    expose:
+      - "8080"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:stable
+    container_name: smrs_nginx
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - certbot-etc:/etc/letsencrypt
+      - certbot-var:/var/www/certbot
+      - ./nginx/logs:/var/log/nginx
+    restart: unless-stopped
+
+  certbot:
+    image: certbot/certbot
+    container_name: smrs_certbot
+    volumes:
+      - certbot-etc:/etc/letsencrypt
+      - certbot-var:/var/www/certbot
+    entrypoint: ["sh", "-c", "while :; do sleep 12h & wait $${!}; certbot renew --webroot -w /var/www/certbot --quiet || true; done"]
+    restart: unless-stopped
+
+volumes:
+  certbot-etc:
+  certbot-var:

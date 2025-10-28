@@ -1,0 +1,41 @@
+Spring:
+  application:
+    name: smrs-service
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: root
+    password: 12345
+    url: jdbc:mysql://localhost:3306/smrs
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+
+# =======================
+# Cloudy Config
+# =======================
+cloudinary:
+  cloud_name: dvn5wyrhv
+  api_key: 945984166731914
+  api_secret: qOr2LrbP6eBQtFtZk2QlKnOvfY4
+
+---
+
+# =======================
+# Mail Config
+# =======================
+spring:
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: baobao280799@gmail.com
+    password: ezem hehp pywg dzum
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
