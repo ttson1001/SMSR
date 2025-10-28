@@ -1,4 +1,5 @@
 version: "3.8"
+
 services:
   db:
     image: mysql:8.0
@@ -31,7 +32,7 @@ services:
       - "8080"
     restart: unless-stopped
 
-   nginx:
+  nginx:
     image: nginx:stable
     container_name: smrs_nginx
     depends_on:
@@ -41,8 +42,8 @@ services:
       - "443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./certbot/etc:/etc/letsencrypt   # <- host path
-      - ./certbot/www:/var/www/certbot    # <- host path
+      - ./certbot/etc:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
       - ./nginx/logs:/var/log/nginx
     restart: unless-stopped
 
@@ -52,9 +53,17 @@ services:
     volumes:
       - ./certbot/etc:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
-    entrypoint: ["sh", "-c", "while :; do sleep 12h & wait $${!}; certbot renew --webroot -w /var/www/certbot --quiet || true; done"]
+    entrypoint:
+      - sh
+      - -c
+      - >
+        while :; do
+          sleep 12h & wait $${!};
+          certbot renew --webroot -w /var/www/certbot
+            --deploy-hook "docker exec smrs_nginx nginx -s reload"
+            --quiet || true;
+        done
     restart: unless-stopped
-
 
 volumes:
   db_data:
