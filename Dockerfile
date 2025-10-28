@@ -3,12 +3,11 @@ FROM maven:3.9.5-eclipse-temurin-21 as build
 WORKDIR /build
 
 # Copy maven files first (to cache dependencies)
-COPY pom.xml .
-# If you have a multi-module build, copy parent files as needed
+COPY smrs-service/pom.xml .
 RUN mvn -B -DskipTests dependency:go-offline
 
 # Copy source and build
-COPY src ./src
+COPY smrs-service/src ./src
 RUN mvn -B -DskipTests package
 
 # ---------- Run stage ----------
