@@ -6,7 +6,7 @@ Spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: smrs_user
     password: smrs_pass
-    url: jdbc:mysql://db:3306/smrs?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    url: jdbc:mysql://14.225.217.153:3306/smrs?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
 
   jpa:
     hibernate:
