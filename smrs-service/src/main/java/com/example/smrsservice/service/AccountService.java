@@ -46,7 +46,7 @@ public class AccountService {
                 .orElseThrow(() -> new RuntimeException("Email not found"));
 
         if (!passwordEncoder.matches(request.getPassword(), acc.getPassword())) {
-            throw new RuntimeException("Invalid credentials");
+            throw new RuntimeException("Sai Password");
         }
 
         String token = jwtTokenProvider.generateToken(acc.getEmail(), acc.getRole().getRoleName());
@@ -124,7 +124,7 @@ public class AccountService {
                 if (email == null || email.isBlank()) continue;
 
                 Account acc = accountRepository.findByEmail(email).orElse(new Account());
-                boolean isNew = (acc.getId() == 0);
+                boolean isNew = (acc.getId() == null);
 
                 acc.setEmail(email);
                 acc.setPassword(passwordEncoder.encode(getCellValue(row.getCell(1))));
