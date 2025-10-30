@@ -13,7 +13,7 @@ public class AccountDetailResponse {
     private String phone;
     private String name;
     private Integer age;
-    private String status = "Active";
+    private String status;
     private Role role;
     private boolean locked;
 }
