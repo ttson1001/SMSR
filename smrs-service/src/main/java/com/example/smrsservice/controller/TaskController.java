@@ -46,4 +46,11 @@ public class TaskController {
                                    @PathVariable Integer accountId) {
         return taskService.assignTask(taskId, accountId);
     }
+
+    @GetMapping("/status/{status}")
+    public PageResponse<TaskResponse> getByStatus(@PathVariable String status,
+                                                  @RequestParam(defaultValue = "1") int page,
+                                                  @RequestParam(defaultValue = "10") int size) {
+        return taskService.getTasksByStatus(status, page, size);
+    }
 }
