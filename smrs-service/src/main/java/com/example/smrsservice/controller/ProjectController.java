@@ -9,6 +9,7 @@ import com.example.smrsservice.service.ProjectService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -38,12 +39,16 @@ public class ProjectController {
 
 
     @PostMapping
-    public ResponseEntity<ResponseDto<Void>> createProject(@RequestBody ProjectCreateDto dto) {
+    public ResponseEntity<ResponseDto<ProjectResponse>> createProject(
+            @RequestBody ProjectCreateDto dto,
+            Authentication authentication
+    ) {
         try {
-            projectService.createProject(dto);
-            return ResponseEntity.ok(ResponseDto.success(null, "Project created successfully"));
+            ResponseDto<ProjectResponse> result = projectService.createProject(dto, authentication);
+            return ResponseEntity.ok(result);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ResponseDto.fail(e.getMessage()));
+            return ResponseEntity.badRequest()
+                    .body(ResponseDto.fail(e.getMessage()));
         }
     }
 

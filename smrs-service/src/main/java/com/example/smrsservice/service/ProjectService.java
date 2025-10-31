@@ -1,5 +1,6 @@
 package com.example.smrsservice.service;
 import com.example.smrsservice.common.ProjectStatus;
+import com.example.smrsservice.dto.common.ResponseDto;
 import com.example.smrsservice.dto.project.ProjectCreateDto;
 import com.example.smrsservice.dto.project.ProjectResponse;
 import com.example.smrsservice.dto.project.UpdateProjectStatusRequest;
@@ -19,6 +20,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Set;
 
@@ -80,39 +82,67 @@ public class ProjectService {
     }
 
 
-    public void createProject(ProjectCreateDto dto) {
-        Account owner = accountRepository.findById(dto.getOwnerId())
-                .orElseThrow(() -> new RuntimeException("Owner not found"));
+    public ResponseDto<ProjectResponse> createProject(ProjectCreateDto dto, Authentication authentication) {
+        try {
+            // 1. Lấy account từ token (giống getMe)
+            Account owner = currentAccount(authentication); // ông đã có hàm này rồi
 
-        Project project = new Project();
-        project.setName(dto.getName());
-        project.setDescription(dto.getDescription());
-        project.setType(dto.getType());
-        project.setDueDate(dto.getDueDate());
-        project.setOwner(owner);
+            // 2. Tạo entity Project
+            Project project = new Project();
+            project.setName(dto.getName());
+            project.setDescription(dto.getDescription());
+            project.setType(dto.getType());
+            project.setDueDate(dto.getDueDate());
+            project.setOwner(owner);
 
-        // Map files
-        if (dto.getFiles() != null && !dto.getFiles().isEmpty()) {
-            dto.getFiles().forEach(f -> {
-                ProjectFile file = new ProjectFile();
-                file.setFilePath(f.getFilePath());
-                file.setType(f.getType());
-                file.setProject(project);
-                project.getFiles().add(file);
-            });
+            // 3. Map files (nhớ check null list trong entity)
+            if (dto.getFiles() != null && !dto.getFiles().isEmpty()) {
+                dto.getFiles().forEach(f -> {
+                    ProjectFile file = new ProjectFile();
+                    file.setFilePath(f.getFilePath());
+                    file.setType(f.getType());
+                    file.setProject(project);
+
+                    // nếu project.getFiles() có thể null thì nên init
+                    if (project.getFiles() == null) {
+                        project.setFiles(new ArrayList<>());
+                    }
+                    project.getFiles().add(file);
+                });
+            }
+
+            // 4. Map images
+            if (dto.getImages() != null && !dto.getImages().isEmpty()) {
+                dto.getImages().forEach(i -> {
+                    ProjectImage image = new ProjectImage();
+                    image.setUrl(i.getUrl());
+                    image.setProject(project);
+
+                    if (project.getImages() == null) {
+                        project.setImages(new ArrayList<>());
+                    }
+                    project.getImages().add(image);
+                });
+            }
+
+            // 5. Lưu
+            projectRepository.save(project);
+
+            // 6. Trả về kiểu giống getMe (ResponseDto.success / fail)
+            ProjectResponse res = ProjectResponse.builder()
+                    .id(project.getId())
+                    .name(project.getName())
+                    .description(project.getDescription())
+                    .type(project.getType())
+                    .dueDate(project.getDueDate())
+                    .ownerId(owner.getId())
+                    .ownerName(owner.getName())
+                    .build();
+
+            return ResponseDto.success(res, "Created");
+        } catch (Exception e) {
+            return ResponseDto.fail(e.getMessage());
         }
-
-        // Map images
-        if (dto.getImages() != null && !dto.getImages().isEmpty()) {
-            dto.getImages().forEach(i -> {
-                ProjectImage image = new ProjectImage();
-                image.setUrl(i.getUrl());
-                image.setProject(project);
-                project.getImages().add(image);
-            });
-        }
-
-        projectRepository.save(project);
     }
 
     public Page<ProjectResponse> searchProjects(
@@ -161,6 +191,20 @@ public class ProjectService {
                 .ownerName(p.getOwner() != null ? p.getOwner().getName() : null)
                 .build();
     }
+
+    private Account currentAccount(Authentication authentication) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new RuntimeException("User not authenticated");
+        }
+
+        String email = authentication.getName();
+
+        return accountRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Account not found with email: " + email));
+    }
+
+
+
 }
 
 
