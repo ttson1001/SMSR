@@ -17,25 +17,12 @@ import java.util.Date;
 @NoArgsConstructor
 @Builder
 public class CreateTaskRequest {
-    @NotBlank private String name;
+    private String name;
     private String description;
-
-    @NotNull private Integer createdById;
+    // nếu ông muốn lấy từ token thì bỏ field này
     private Integer assignedToId;
-
     private Integer milestoneId;
-    private Integer projectId;
-
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")
-    private Date startDate;
-
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")
     private Date deadline;
-
-    @DecimalMin("0.0") @DecimalMax("100.0")
-    private Double progressPercent;
-
-    private String status; // Pending / InProgress / Done...
 
 
 }
