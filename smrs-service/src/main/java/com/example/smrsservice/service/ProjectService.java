@@ -85,7 +85,7 @@ public class ProjectService {
     public ResponseDto<ProjectResponse> createProject(ProjectCreateDto dto, Authentication authentication) {
         try {
             // 1. Lấy account từ token (giống getMe)
-            Account owner = currentAccount(authentication); // ông đã có hàm này rồi
+            Account owner = currentAccount(authentication);
 
             // 2. Tạo entity Project
             Project project = new Project();

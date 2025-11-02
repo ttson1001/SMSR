@@ -17,7 +17,6 @@ public class ProjectCreateDto {
     private String description;
     private String type;
     private Date dueDate;
-    private Integer ownerId;
     private List<ProjectFileDto> files;
     private List<ProjectImageDto> images;
 }
