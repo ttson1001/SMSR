@@ -124,7 +124,12 @@ public class AccountService {
                 if (email == null || email.isBlank()) continue;
 
                 Account acc = accountRepository.findByEmail(email).orElse(new Account());
-                boolean isNew = (acc.getId() == 0);
+                boolean isNew = (acc.getId() == null);
+
+                if (isNew) {
+                    acc.setEmail(email);
+                    acc.setCreateDate(new Date());
+                }
 
                 acc.setPassword(passwordEncoder.encode(getCellValue(row.getCell(1))));
 
@@ -238,14 +243,29 @@ public class AccountService {
     }
 
     private String extractEmail(Authentication authentication) {
-        if (authentication == null) throw new IllegalStateException("User chưa đăng nhập");
-        Object p = authentication.getPrincipal();
-        if (p instanceof Account a && a.getEmail() != null) return a.getEmail();
-        // Nếu filter để principal=String (email) thì rơi vào đây
-        if (p instanceof String s && !s.isBlank()) return s;
-        // Fallback: nhiều provider setName() = username/email
-        String name = authentication.getName();
-        if (name != null && !name.isBlank()) return name;
+        if (authentication == null)
+            throw new IllegalStateException("User chưa đăng nhập");
+
+        Object principal = authentication.getPrincipal();
+
+        // ✅ Nếu principal là Account (custom entity)
+        if (principal instanceof Account acc) {
+            if (acc.getEmail() == null || acc.getEmail().isBlank()) {
+                throw new IllegalStateException("Account không có email");
+            }
+            return acc.getEmail();
+        }
+
+        // ✅ Nếu principal là UserDetails mặc định của Spring
+        if (principal instanceof org.springframework.security.core.userdetails.User user) {
+            return user.getUsername(); // username thường là email
+        }
+
+        // ✅ Nếu principal là String (JWT filter custom)
+        if (principal instanceof String s && !s.isBlank()) {
+            return s;
+        }
+
         throw new IllegalStateException("Không lấy được email từ Authentication");
     }
 

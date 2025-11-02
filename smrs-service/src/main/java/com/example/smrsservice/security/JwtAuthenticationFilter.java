@@ -60,6 +60,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                 new UsernamePasswordAuthenticationToken(account, null, Collections.emptyList());
                         SecurityContextHolder.getContext().setAuthentication(authentication);
                     }
+
                 }
             } catch (JwtException ex) {
                 // Token không hợp lệ -> không set authentication
