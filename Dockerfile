@@ -15,6 +15,13 @@ FROM eclipse-temurin:21-jre
 ARG JAR_FILE=/build/target/*.jar
 WORKDIR /app
 
+# 🕒 Cài đặt timezone (tuỳ chọn)
+RUN apt-get update && apt-get install -y tzdata && \
+    ln -fs /usr/share/zoneinfo/Asia/Ho_Chi_Minh /etc/localtime && \
+    dpkg-reconfigure -f noninteractive tzdata
+
+ENV TZ=Asia/Ho_Chi_Minh
+
 # copy the fat jar from build stage
 COPY --from=build ${JAR_FILE} app.jar
 
