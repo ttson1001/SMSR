@@ -25,4 +25,14 @@ public class UploadController {
             return ResponseDto.fail("Lỗi khi upload ảnh: " + e.getMessage());
         }
     }
+
+    @PostMapping(value = "/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseDto<String> uploadFile(@RequestParam("file") MultipartFile file) {
+        try {
+            String fileUrl = uploadService.uploadFile(file);
+            return ResponseDto.success(fileUrl, "Upload file thành công");
+        } catch (Exception e) {
+            return ResponseDto.fail("Lỗi khi upload file: " + e.getMessage());
+        }
+    }
 }
