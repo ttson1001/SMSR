@@ -2,13 +2,12 @@ package com.example.smrsservice.service;
 import com.example.smrsservice.common.ProjectStatus;
 import com.example.smrsservice.dto.common.ResponseDto;
 import com.example.smrsservice.dto.project.ProjectCreateDto;
+import com.example.smrsservice.dto.project.ProjectDetailResponse;
 import com.example.smrsservice.dto.project.ProjectResponse;
 import com.example.smrsservice.dto.project.UpdateProjectStatusRequest;
-import com.example.smrsservice.entity.Account;
-import com.example.smrsservice.entity.Project;
-import com.example.smrsservice.entity.ProjectFile;
-import com.example.smrsservice.entity.ProjectImage;
+import com.example.smrsservice.entity.*;
 import com.example.smrsservice.repository.AccountRepository;
+import com.example.smrsservice.repository.ProjectMemberRepository;
 import com.example.smrsservice.repository.ProjectRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -18,12 +17,10 @@ import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,6 +29,10 @@ public class ProjectService {
 
     private final ProjectRepository projectRepository;
     private final AccountRepository accountRepository;
+    private final ProjectMemberRepository projectMemberRepository;
+    private final MailService mailService;
+
+    private static final int MAX_STUDENTS_PER_PROJECT = 5;
 
     public ProjectResponse updateProjectStatus(Integer projectId, UpdateProjectStatusRequest req) {
         if (req == null || req.getStatus() == null) {
@@ -43,12 +44,10 @@ public class ProjectService {
         ProjectStatus oldS = p.getStatus() == null ? ProjectStatus.PENDING : p.getStatus();
         ProjectStatus newS = req.getStatus();
 
-        // Rule chuyển trạng thái
         if (!oldS.canTransitionTo(newS)) {
             throw new IllegalStateException("Không thể chuyển từ " + oldS.getJsonName() + " -> " + newS.getJsonName());
         }
 
-        // Kiểm tra quyền: Owner hoặc ADMIN
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String email = (auth != null) ? auth.getName() : null;
         boolean isOwner = p.getOwner() != null && p.getOwner().getEmail().equalsIgnoreCase(email);
@@ -61,17 +60,10 @@ public class ProjectService {
         p.setStatus(newS);
         projectRepository.save(p);
 
-        // (tuỳ chọn) nếu muốn lưu lịch sử trạng thái, insert vào bảng ProjectStatusHistory ở đây
-
         return toResponse(p);
     }
 
-
-
-
-    // --- GET ALL (paged + sort) ---
     public Page<ProjectResponse> getAll(int page, int size, String sortBy, String sortDir) {
-        // whitelist tránh client truyền linh tinh
         java.util.Set<String> allowed = java.util.Set.of("id","name","type","dueDate","description");
         String by = allowed.contains(sortBy) ? sortBy : "id";
 
@@ -83,12 +75,22 @@ public class ProjectService {
         return projectRepository.findAll(pageable).map(this::toResponse);
     }
 
-
+    @Transactional
     public ResponseDto<ProjectResponse> createProject(ProjectCreateDto dto, Authentication authentication) {
         try {
             Account owner = currentAccount(authentication);
 
-            // 2. Tạo project
+            // Kiểm tra owner phải là LECTURER hoặc STUDENT
+            if (owner.getRole() == null) {
+                return ResponseDto.fail("User role not found");
+            }
+
+            String roleName = owner.getRole().getRoleName();
+            if (!"LECTURER".equalsIgnoreCase(roleName) && !"STUDENT".equalsIgnoreCase(roleName)) {
+                return ResponseDto.fail("Only lecturers and students can create projects");
+            }
+
+            // Tạo project
             Project project = new Project();
             project.setName(dto.getName());
             project.setDescription(dto.getDescription());
@@ -96,7 +98,7 @@ public class ProjectService {
             project.setDueDate(dto.getDueDate());
             project.setOwner(owner);
 
-            // 3. Map files
+            // Map files
             if (dto.getFiles() != null && !dto.getFiles().isEmpty()) {
                 List<ProjectFile> files = dto.getFiles().stream()
                         .map(f -> {
@@ -110,7 +112,7 @@ public class ProjectService {
                 project.setFiles(files);
             }
 
-            // 4. Map images
+            // Map images
             if (dto.getImages() != null && !dto.getImages().isEmpty()) {
                 List<ProjectImage> images = dto.getImages().stream()
                         .map(i -> {
@@ -123,10 +125,15 @@ public class ProjectService {
                 project.setImages(images);
             }
 
-            // 5. Lưu
+            // Lưu project
             projectRepository.save(project);
 
-            // 6. Response
+            // Mời thành viên (nếu có)
+            if (dto.getInvitedEmails() != null && !dto.getInvitedEmails().isEmpty()) {
+                inviteMembers(project, dto.getInvitedEmails(), owner);
+            }
+
+            // Response
             ProjectResponse res = ProjectResponse.builder()
                     .id(project.getId())
                     .name(project.getName())
@@ -141,6 +148,107 @@ public class ProjectService {
 
         } catch (Exception e) {
             return ResponseDto.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * Mời danh sách thành viên vào project với validation
+     */
+    private void inviteMembers(Project project, List<String> emails, Account owner) {
+        int lecturerCount = 0;
+        int studentCount = 0;
+
+        // Kiểm tra số lượng hiện tại
+        long currentLecturers = projectMemberRepository.countByProjectIdAndMemberRoleAndStatus(
+                project.getId(), "LECTURER", "Approved");
+        long currentStudents = projectMemberRepository.countByProjectIdAndMemberRoleAndStatus(
+                project.getId(), "STUDENT", "Approved");
+
+        for (String email : emails) {
+            try {
+                // Tìm account theo email
+                Account invitedAccount = accountRepository.findByEmail(email.trim())
+                        .orElse(null);
+
+                if (invitedAccount == null) {
+                    System.out.println("Account not found: " + email);
+                    continue;
+                }
+
+                // Không mời chính owner
+                if (invitedAccount.getId().equals(owner.getId())) {
+                    System.out.println("Cannot invite owner: " + email);
+                    continue;
+                }
+
+                // Kiểm tra account có role không
+                if (invitedAccount.getRole() == null) {
+                    System.out.println("Account has no role: " + email);
+                    continue;
+                }
+
+                // Kiểm tra user có đang tham gia project active nào không
+                boolean hasActiveProject = projectMemberRepository.hasActiveProject(invitedAccount.getId());
+                if (hasActiveProject) {
+                    System.out.println("User is already in an active project: " + email);
+                    continue;
+                }
+
+                // Kiểm tra đã mời chưa
+                boolean alreadyInvited = projectMemberRepository
+                        .existsByProjectIdAndAccountId(project.getId(), invitedAccount.getId());
+
+                if (alreadyInvited) {
+                    System.out.println("Already invited: " + email);
+                    continue;
+                }
+
+                String roleName = invitedAccount.getRole().getRoleName();
+
+                // Validate theo role
+                if ("LECTURER".equalsIgnoreCase(roleName)) {
+                    // Kiểm tra đã có giảng viên chưa
+                    if (currentLecturers > 0 || lecturerCount > 0) {
+                        System.out.println("Project already has a lecturer: " + email);
+                        continue;
+                    }
+                    lecturerCount++;
+
+                } else if ("STUDENT".equalsIgnoreCase(roleName)) {
+                    // Kiểm tra số lượng sinh viên
+                    if (currentStudents + studentCount >= MAX_STUDENTS_PER_PROJECT) {
+                        System.out.println("Maximum students reached: " + email);
+                        continue;
+                    }
+                    studentCount++;
+
+                } else {
+                    System.out.println("Invalid role: " + email);
+                    continue;
+                }
+
+                // Tạo lời mời
+                ProjectMember member = new ProjectMember();
+                member.setProject(project);
+                member.setAccount(invitedAccount);
+                member.setStatus("Pending");
+                member.setMemberRole(roleName.toUpperCase());
+                projectMemberRepository.save(member);
+
+                // Gửi email
+                mailService.sendProjectInvitation(
+                        invitedAccount.getEmail(),
+                        invitedAccount.getName(),
+                        project.getName(),
+                        owner.getName(),
+                        roleName.toUpperCase()
+                );
+
+                System.out.println("Successfully invited: " + email);
+
+            } catch (Exception e) {
+                System.err.println("Error inviting " + email + ": " + e.getMessage());
+            }
         }
     }
 
@@ -211,8 +319,119 @@ public class ProjectService {
         throw new RuntimeException("Invalid authentication principal type");
     }
 
+    public ResponseDto<ProjectDetailResponse> getProjectDetail(Integer projectId) {
+        try {
+            // Lấy project
+            Project project = projectRepository.findById(projectId)
+                    .orElseThrow(() -> new RuntimeException("Project not found"));
 
+            // Lấy tất cả members của project
+            List<ProjectMember> allMembers = projectMemberRepository.findByProjectId(projectId);
 
+            // Tách lecturer và students
+            Optional<ProjectMember> lecturerMember = allMembers.stream()
+                    .filter(pm -> "LECTURER".equalsIgnoreCase(pm.getMemberRole()))
+                    .findFirst();
+
+            List<ProjectMember> studentMembers = allMembers.stream()
+                    .filter(pm -> "STUDENT".equalsIgnoreCase(pm.getMemberRole()))
+                    .collect(Collectors.toList());
+
+            // Build owner info
+            ProjectDetailResponse.OwnerInfo ownerInfo = ProjectDetailResponse.OwnerInfo.builder()
+                    .id(project.getOwner().getId())
+                    .name(project.getOwner().getName())
+                    .email(project.getOwner().getEmail())
+                    .role(project.getOwner().getRole() != null ?
+                            project.getOwner().getRole().getRoleName() : null)
+                    .build();
+
+            // Build lecturer info
+            ProjectDetailResponse.LecturerInfo lecturerInfo = null;
+            if (lecturerMember.isPresent()) {
+                ProjectMember lm = lecturerMember.get();
+                lecturerInfo = ProjectDetailResponse.LecturerInfo.builder()
+                        .id(lm.getId())
+                        .accountId(lm.getAccount().getId())
+                        .name(lm.getAccount().getName())
+                        .email(lm.getAccount().getEmail())
+                        .status(lm.getStatus())
+                        .build();
+            }
+
+            // Build members info
+            List<ProjectDetailResponse.MemberInfo> membersInfo = studentMembers.stream()
+                    .map(pm -> ProjectDetailResponse.MemberInfo.builder()
+                            .id(pm.getId())
+                            .accountId(pm.getAccount().getId())
+                            .name(pm.getAccount().getName())
+                            .email(pm.getAccount().getEmail())
+                            .role(pm.getMemberRole())
+                            .status(pm.getStatus())
+                            .joinedDate(null) // Có thể thêm field created_date vào ProjectMember entity
+                            .build())
+                    .collect(Collectors.toList());
+
+            // Build files info
+            List<ProjectDetailResponse.FileInfo> filesInfo = project.getFiles().stream()
+                    .map(f -> ProjectDetailResponse.FileInfo.builder()
+                            .id(f.getId())
+                            .filePath(f.getFilePath())
+                            .type(f.getType())
+                            .build())
+                    .collect(Collectors.toList());
+
+            // Build images info
+            List<ProjectDetailResponse.ImageInfo> imagesInfo = project.getImages().stream()
+                    .map(i -> ProjectDetailResponse.ImageInfo.builder()
+                            .id(i.getId())
+                            .url(i.getUrl())
+                            .build())
+                    .collect(Collectors.toList());
+
+            // Build statistics
+            long approvedCount = studentMembers.stream()
+                    .filter(pm -> "Approved".equals(pm.getStatus()))
+                    .count();
+            long pendingCount = studentMembers.stream()
+                    .filter(pm -> "Pending".equals(pm.getStatus()))
+                    .count();
+
+            ProjectDetailResponse.Statistics statistics = ProjectDetailResponse.Statistics.builder()
+                    .totalMembers(studentMembers.size())
+                    .approvedMembers((int) approvedCount)
+                    .pendingMembers((int) pendingCount)
+                    .totalStudents(studentMembers.size())
+                    .totalFiles(project.getFiles() != null ? project.getFiles().size() : 0)
+                    .totalImages(project.getImages() != null ? project.getImages().size() : 0)
+                    .hasLecturer(lecturerMember.isPresent() &&
+                            "Approved".equals(lecturerMember.get().getStatus()))
+                    .build();
+
+            // Build response
+            ProjectDetailResponse response = ProjectDetailResponse.builder()
+                    .id(project.getId())
+                    .name(project.getName())
+                    .description(project.getDescription())
+                    .type(project.getType())
+                    .status(project.getStatus())
+                    .createDate(project.getCreateDate())
+                    .dueDate(project.getDueDate())
+                    .owner(ownerInfo)
+                    .lecturer(lecturerInfo)
+                    .members(membersInfo)
+                    .files(filesInfo)
+                    .images(imagesInfo)
+                    .statistics(statistics)
+                    .build();
+
+            return ResponseDto.success(response, "Get project detail successfully");
+
+        } catch (Exception e) {
+            return ResponseDto.fail(e.getMessage());
+        }
+
+    }
 }
 
 

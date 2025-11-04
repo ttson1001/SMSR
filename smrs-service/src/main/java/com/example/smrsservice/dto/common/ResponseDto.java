@@ -36,6 +36,14 @@ public class ResponseDto<T> {
                 .build();
     }
 
+    public static <T> ResponseDto<T> success(String message) {
+        return ResponseDto.<T>builder()
+                .success(true)
+                .message(message)
+                .data(null)
+                .build();
+    }
+
     public static <T> ResponseDto<T> successWithPagination(T data, String message, Page<?> page) {
         return ResponseDto.<T>builder()
                 .success(true)
@@ -59,4 +67,6 @@ public class ResponseDto<T> {
                 .message(message)
                 .build();
     }
+
+
 }

@@ -3,6 +3,7 @@ package com.example.smrsservice.controller;
 
 import com.example.smrsservice.dto.common.ResponseDto;
 import com.example.smrsservice.dto.project.ProjectCreateDto;
+import com.example.smrsservice.dto.project.ProjectDetailResponse;
 import com.example.smrsservice.dto.project.ProjectResponse;
 import com.example.smrsservice.dto.project.UpdateProjectStatusRequest;
 import com.example.smrsservice.service.ProjectService;
@@ -64,5 +65,11 @@ public class ProjectController {
             @RequestParam(defaultValue = "desc") String sortDir
     ) {
         return projectService.searchProjects(name, description, page, size, sortBy, sortDir);
+    }
+
+    @GetMapping("/{id}/detail")
+    public ResponseEntity<ResponseDto<ProjectDetailResponse>> getProjectDetail(
+            @PathVariable Integer id) {
+        return ResponseEntity.ok(projectService.getProjectDetail(id));
     }
 }

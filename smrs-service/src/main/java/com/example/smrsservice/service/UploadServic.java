@@ -23,16 +23,4 @@ public class UploadServic {
             throw new RuntimeException("Lỗi upload hình ảnh lên Cloudinary", e);
         }
     }
-
-    public String uploadFile(MultipartFile file) {
-        try {
-            Map<?, ?> uploadResult = cloudinary.uploader().upload(
-                    file.getBytes(),
-                    ObjectUtils.asMap("resource_type", "auto")
-            );
-            return uploadResult.get("secure_url").toString();
-        } catch (IOException e) {
-            throw new RuntimeException("Lỗi upload file lên Cloudinary", e);
-        }
-    }
 }

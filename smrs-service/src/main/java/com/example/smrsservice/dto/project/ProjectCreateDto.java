@@ -1,9 +1,6 @@
 package com.example.smrsservice.dto.project;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.util.Date;
 import java.util.List;
@@ -19,5 +16,17 @@ public class ProjectCreateDto {
     private Date dueDate;
     private List<ProjectFileDto> files;
     private List<ProjectImageDto> images;
+    private List<String> invitedEmails;
+
+    @Data
+    public static class FileDto {
+        private String filePath;
+        private String type;
+    }
+
+    @Data
+    public static class ImageDto {
+        private String url;
+    }
 }
 

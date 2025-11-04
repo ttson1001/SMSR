@@ -231,6 +231,7 @@ public class AccountService {
                     .name(account.getName())
                     .email(account.getEmail())
                     .phone(account.getPhone())
+                    .role(account.getRole() != null ? account.getRole().getRoleName() : null)
                     .age(account.getAge())
                     .build();
             return ResponseDto.success(dto, "OK");
