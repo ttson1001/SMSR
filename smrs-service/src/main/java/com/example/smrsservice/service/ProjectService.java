@@ -21,8 +21,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -84,10 +86,9 @@ public class ProjectService {
 
     public ResponseDto<ProjectResponse> createProject(ProjectCreateDto dto, Authentication authentication) {
         try {
-            // 1. Lấy account từ token (giống getMe)
             Account owner = currentAccount(authentication);
 
-            // 2. Tạo entity Project
+            // 2. Tạo project
             Project project = new Project();
             project.setName(dto.getName());
             project.setDescription(dto.getDescription());
@@ -95,40 +96,37 @@ public class ProjectService {
             project.setDueDate(dto.getDueDate());
             project.setOwner(owner);
 
-            // 3. Map files (nhớ check null list trong entity)
+            // 3. Map files
             if (dto.getFiles() != null && !dto.getFiles().isEmpty()) {
-                dto.getFiles().forEach(f -> {
-                    ProjectFile file = new ProjectFile();
-                    file.setFilePath(f.getFilePath());
-                    file.setType(f.getType());
-                    file.setProject(project);
-
-                    // nếu project.getFiles() có thể null thì nên init
-                    if (project.getFiles() == null) {
-                        project.setFiles(new ArrayList<>());
-                    }
-                    project.getFiles().add(file);
-                });
+                List<ProjectFile> files = dto.getFiles().stream()
+                        .map(f -> {
+                            ProjectFile file = new ProjectFile();
+                            file.setFilePath(f.getFilePath());
+                            file.setType(f.getType());
+                            file.setProject(project);
+                            return file;
+                        })
+                        .collect(Collectors.toList());
+                project.setFiles(files);
             }
 
             // 4. Map images
             if (dto.getImages() != null && !dto.getImages().isEmpty()) {
-                dto.getImages().forEach(i -> {
-                    ProjectImage image = new ProjectImage();
-                    image.setUrl(i.getUrl());
-                    image.setProject(project);
-
-                    if (project.getImages() == null) {
-                        project.setImages(new ArrayList<>());
-                    }
-                    project.getImages().add(image);
-                });
+                List<ProjectImage> images = dto.getImages().stream()
+                        .map(i -> {
+                            ProjectImage image = new ProjectImage();
+                            image.setUrl(i.getUrl());
+                            image.setProject(project);
+                            return image;
+                        })
+                        .collect(Collectors.toList());
+                project.setImages(images);
             }
 
             // 5. Lưu
             projectRepository.save(project);
 
-            // 6. Trả về kiểu giống getMe (ResponseDto.success / fail)
+            // 6. Response
             ProjectResponse res = ProjectResponse.builder()
                     .id(project.getId())
                     .name(project.getName())
@@ -139,7 +137,8 @@ public class ProjectService {
                     .ownerName(owner.getName())
                     .build();
 
-            return ResponseDto.success(res, "Created");
+            return ResponseDto.success(res, "Project created successfully");
+
         } catch (Exception e) {
             return ResponseDto.fail(e.getMessage());
         }
@@ -193,14 +192,23 @@ public class ProjectService {
     }
 
     private Account currentAccount(Authentication authentication) {
-        if (authentication == null || authentication.getName() == null) {
+        if (authentication == null) {
             throw new RuntimeException("User not authenticated");
         }
 
-        String email = authentication.getName();
+        Object principal = authentication.getPrincipal();
 
-        return accountRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Account not found with email: " + email));
+        if (principal instanceof Account) {
+            return (Account) principal;
+        }
+
+        if (principal instanceof String) {
+            String email = (String) principal;
+            return accountRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("Account not found with email: " + email));
+        }
+
+        throw new RuntimeException("Invalid authentication principal type");
     }
 
 

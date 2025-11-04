@@ -41,15 +41,16 @@ public class ProjectController {
     @PostMapping
     public ResponseEntity<ResponseDto<ProjectResponse>> createProject(
             @RequestBody ProjectCreateDto dto,
-            Authentication authentication
-    ) {
-        try {
-            ResponseDto<ProjectResponse> result = projectService.createProject(dto, authentication);
-            return ResponseEntity.ok(result);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest()
-                    .body(ResponseDto.fail(e.getMessage()));
+            Authentication authentication) {
+
+        ResponseDto<ProjectResponse> response = projectService.createProject(dto, authentication);
+
+        // Nếu fail thì trả về 400/404, không phải 200
+        if (!response.isSuccess()) {
+            return ResponseEntity.badRequest().body(response);
         }
+
+        return ResponseEntity.ok(response);
     }
 
 
