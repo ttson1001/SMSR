@@ -111,16 +111,26 @@ public class AccountService {
             Sheet sheet = workbook.getSheetAt(0);
             Iterator<Row> rows = sheet.iterator();
 
-            int rowNumber = 0;
+            // Đọc header row
+            Map<String, Integer> headerMap = new HashMap<>();
+            if (rows.hasNext()) {
+                Row headerRow = rows.next();
+                for (Cell cell : headerRow) {
+                    String columnName = cell.getStringCellValue().trim().toLowerCase();
+                    headerMap.put(columnName, cell.getColumnIndex());
+                }
+            }
+
+            // Kiểm tra các cột bắt buộc
+            if (!headerMap.containsKey("email")) {
+                throw new RuntimeException("Missing required column: email");
+            }
+
+            // Đọc data rows
             while (rows.hasNext()) {
                 Row row = rows.next();
 
-                if (rowNumber == 0) {
-                    rowNumber++;
-                    continue;
-                }
-
-                String email = getCellValue(row.getCell(0));
+                String email = getCellValue(row.getCell(headerMap.get("email")));
                 if (email == null || email.isBlank()) continue;
 
                 Account acc = accountRepository.findByEmail(email).orElse(new Account());
@@ -131,26 +141,41 @@ public class AccountService {
                     acc.setCreateDate(new Date());
                 }
 
-                acc.setPassword(passwordEncoder.encode(getCellValue(row.getCell(1))));
-
-                acc.setName(getCellValue(row.getCell(2)));
-                acc.setPhone(getCellValue(row.getCell(3)));
-                acc.setAvatar(getCellValue(row.getCell(4)));
-                String ageStr = getCellValue(row.getCell(5));
-                if (!ageStr.isEmpty()) {
-                    acc.setAge(Integer.parseInt(ageStr));
+                // Đọc theo tên cột trong header
+                if (headerMap.containsKey("password")) {
+                    acc.setPassword(passwordEncoder.encode(
+                            getCellValue(row.getCell(headerMap.get("password")))));
                 }
 
-                if (isNew) {
-                    acc.setCreateDate(new Date());
+                if (headerMap.containsKey("name")) {
+                    acc.setName(getCellValue(row.getCell(headerMap.get("name"))));
                 }
 
-                String statusValue = getCellValue(row.getCell(6)).toUpperCase();
-                acc.setStatus(statusValue.equals("LOCKED") ? AccountStatus.LOCKED : AccountStatus.ACTIVE);
+                if (headerMap.containsKey("avatar")) {
+                    acc.setAvatar(getCellValue(row.getCell(headerMap.get("avatar"))));
+                }
 
-                String roleName = getCellValue(row.getCell(7));
-                Role role = roleRepository.findByRoleName(roleName).get();
-                acc.setRole(role);
+                if (headerMap.containsKey("phone")) {
+                    acc.setPhone(getCellValue(row.getCell(headerMap.get("phone"))));
+                }
+
+                if (headerMap.containsKey("age")) {
+                    String ageStr = getCellValue(row.getCell(headerMap.get("age")));
+                    if (!ageStr.isEmpty()) {
+                        acc.setAge(Integer.parseInt(ageStr));
+                    }
+                }
+
+                if (headerMap.containsKey("status")) {
+                    String statusValue = getCellValue(row.getCell(headerMap.get("status"))).toUpperCase();
+                    acc.setStatus(statusValue.equals("LOCKED") ? AccountStatus.LOCKED : AccountStatus.ACTIVE);
+                }
+
+                if (headerMap.containsKey("role")) {
+                    String roleName = getCellValue(row.getCell(headerMap.get("role")));
+                    Role role = roleRepository.findByRoleName(roleName).orElseThrow();
+                    acc.setRole(role);
+                }
 
                 accounts.add(acc);
             }

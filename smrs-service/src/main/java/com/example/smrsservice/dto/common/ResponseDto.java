@@ -33,33 +33,29 @@ public class ResponseDto<T> {
                 .success(true)
                 .message(message)
                 .data(data)
-                .build();
-    }
-
-    public static <T> ResponseDto<T> success(String message) {
-        return ResponseDto.<T>builder()
-                .success(true)
-                .message(message)
-                .data(null)
+                .pagination(null)
                 .build();
     }
 
     public static <T> ResponseDto<T> successWithPagination(T data, String message, Page<?> page) {
+        PaginationInfo paginationInfo = PaginationInfo.builder()
+                .pageNumber(page.getNumber())
+                .pageSize(page.getSize())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .first(page.isFirst())
+                .last(page.isLast())
+                .empty(page.isEmpty())
+                .build();
+
         return ResponseDto.<T>builder()
                 .success(true)
                 .message(message)
                 .data(data)
-                .pagination(PaginationInfo.builder()
-                        .pageNumber(page.getNumber())
-                        .pageSize(page.getSize())
-                        .totalElements(page.getTotalElements())
-                        .totalPages(page.getTotalPages())
-                        .first(page.isFirst())
-                        .last(page.isLast())
-                        .empty(page.isEmpty())
-                        .build())
+                .pagination(paginationInfo)
                 .build();
     }
+
 
     public static <T> ResponseDto<T> fail(String message) {
         return ResponseDto.<T>builder()
@@ -67,6 +63,7 @@ public class ResponseDto<T> {
                 .message(message)
                 .build();
     }
+
 
 
 }
