@@ -44,4 +44,8 @@ public class Task {
     @ManyToOne
     @JoinColumn(name = "milestone_id")
     private Milestone milestone;
+
+    @ManyToOne
+    @JoinColumn(name = "project_id")
+    private Project project;
 }

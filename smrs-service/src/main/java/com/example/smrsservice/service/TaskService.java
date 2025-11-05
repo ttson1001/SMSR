@@ -7,9 +7,11 @@ import com.example.smrsservice.dto.task.TaskResponse;
 import com.example.smrsservice.dto.task.UpdateTaskRequest;
 import com.example.smrsservice.entity.Account;
 import com.example.smrsservice.entity.Milestone;
+import com.example.smrsservice.entity.Project;
 import com.example.smrsservice.entity.Task;
 import com.example.smrsservice.repository.AccountRepository;
 import com.example.smrsservice.repository.MilestoneRepository;
+import com.example.smrsservice.repository.ProjectRepository;
 import com.example.smrsservice.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -28,6 +30,7 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final AccountRepository accountRepository;
     private final MilestoneRepository milestoneRepository;
+    private final ProjectRepository projectRepository;
 
 
     public TaskResponse createTask(CreateTaskRequest request) {
@@ -59,6 +62,12 @@ public class TaskService {
             Milestone milestone = milestoneRepository.findById(request.getMilestoneId())
                     .orElse(null);
             task.setMilestone(milestone);
+        }
+
+        if (request.getProjectId() != null) {
+            Project project = projectRepository.findById(request.getProjectId())
+                    .orElse(null);
+            task.setProject(project);
         }
 
         taskRepository.save(task);
@@ -116,6 +125,38 @@ public class TaskService {
                 .build();
     }
 
+    public PageResponse<TaskResponse> getTasksByProject(Integer projectId, int page, int size) {
+        PageRequest pageable = PageRequest.of(page - 1, size);
+        Page<Task> taskPage = taskRepository.findByProjectId(projectId, pageable);
+
+        return PageResponse.<TaskResponse>builder()
+                .currentPages(page)
+                .pageSizes(size)
+                .totalPages(taskPage.getTotalPages())
+                .totalElements(taskPage.getTotalElements())
+                .data(taskPage.getContent()
+                        .stream()
+                        .map(this::buildTaskResponse)
+                        .toList())
+                .build();
+    }
+
+    public PageResponse<TaskResponse> getTasksByProjectAndStatus(Integer projectId, String status, int page, int size) {
+        PageRequest pageable = PageRequest.of(page - 1, size);
+        Page<Task> taskPage = taskRepository.findByProjectIdAndStatusIgnoreCase(projectId, status, pageable);
+
+        return PageResponse.<TaskResponse>builder()
+                .currentPages(page)
+                .pageSizes(size)
+                .totalPages(taskPage.getTotalPages())
+                .totalElements(taskPage.getTotalElements())
+                .data(taskPage.getContent()
+                        .stream()
+                        .map(this::buildTaskResponse)
+                        .toList())
+                .build();
+    }
+
     public void deleteTask(Integer id) {
         if (!taskRepository.existsById(id)) {
             throw new RuntimeException("Task not found");
@@ -147,6 +188,8 @@ public class TaskService {
                 .status(task.getStatus())
                 .milestoneId(task.getMilestone() != null ? task.getMilestone().getId() : null)
                 .milestoneName(task.getMilestone() != null ? task.getMilestone().getDescription() : null)
+                .projectId(task.getProject() != null ? task.getProject().getId() : null)
+                .projectName(task.getProject() != null ? task.getProject().getName() : null)
                 .build();
     }
 

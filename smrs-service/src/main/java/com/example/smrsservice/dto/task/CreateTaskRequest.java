@@ -19,10 +19,11 @@ import java.util.Date;
 public class CreateTaskRequest {
     private String name;
     private String description;
-    // nếu ông muốn lấy từ token thì bỏ field này
     private Integer assignedToId;
     private Integer milestoneId;
     private Date deadline;
+
+    private Integer projectId;
 
 
 }

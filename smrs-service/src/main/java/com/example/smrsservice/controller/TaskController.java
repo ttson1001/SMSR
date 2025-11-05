@@ -6,6 +6,7 @@ import com.example.smrsservice.dto.task.TaskResponse;
 import com.example.smrsservice.dto.task.UpdateTaskRequest;
 import com.example.smrsservice.service.TaskService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -45,6 +46,23 @@ public class TaskController {
     public TaskResponse assignTask(@PathVariable Integer taskId,
                                    @PathVariable Integer accountId) {
         return taskService.assignTask(taskId, accountId);
+    }
+
+    @GetMapping("/project/{projectId}")
+    public ResponseEntity<PageResponse<TaskResponse>> getTasksByProject(
+            @PathVariable Integer projectId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(taskService.getTasksByProject(projectId, page, size));
+    }
+    
+    @GetMapping("/project/{projectId}/status/{status}")
+    public ResponseEntity<PageResponse<TaskResponse>> getTasksByProjectAndStatus(
+            @PathVariable Integer projectId,
+            @PathVariable String status,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(taskService.getTasksByProjectAndStatus(projectId, status, page, size));
     }
 
     @GetMapping("/status/{status}")
