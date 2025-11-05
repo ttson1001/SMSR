@@ -80,7 +80,6 @@ public class ProjectService {
         try {
             Account owner = currentAccount(authentication);
 
-            // Kiểm tra owner phải là LECTURER hoặc STUDENT
             if (owner.getRole() == null) {
                 return ResponseDto.fail("User role not found");
             }
@@ -90,7 +89,6 @@ public class ProjectService {
                 return ResponseDto.fail("Only lecturers and students can create projects");
             }
 
-            // Tạo project
             Project project = new Project();
             project.setName(dto.getName());
             project.setDescription(dto.getDescription());
@@ -100,45 +98,40 @@ public class ProjectService {
 
             // Map files
             if (dto.getFiles() != null && !dto.getFiles().isEmpty()) {
-                List<ProjectFile> files = dto.getFiles().stream()
-                        .map(f -> {
-                            ProjectFile file = new ProjectFile();
-                            file.setFilePath(f.getFilePath());
-                            file.setType(f.getType());
-                            file.setProject(project);
-                            return file;
-                        })
-                        .collect(Collectors.toList());
-                project.setFiles(files);
+                System.out.println(">>> Mapping files...");
+                for (ProjectCreateDto.FileDto f : dto.getFiles()) {
+                    System.out.println("  - File: " + f.getFilePath() + " | Type: " + f.getType());
+                    ProjectFile file = new ProjectFile();
+                    file.setFilePath(f.getFilePath());
+                    file.setType(f.getType());
+                    file.setProject(project);
+                    project.getFiles().add(file);
+                }
             }
 
             // Map images
             if (dto.getImages() != null && !dto.getImages().isEmpty()) {
-                List<ProjectImage> images = dto.getImages().stream()
-                        .map(i -> {
-                            ProjectImage image = new ProjectImage();
-                            image.setUrl(i.getUrl());
-                            image.setProject(project);
-                            return image;
-                        })
-                        .collect(Collectors.toList());
-                project.setImages(images);
+                System.out.println(">>> Mapping images...");
+                for (ProjectCreateDto.ImageDto i : dto.getImages()) {
+                    System.out.println("  - Image: " + i.getUrl());
+                    ProjectImage image = new ProjectImage();
+                    image.setUrl(i.getUrl());
+                    image.setProject(project);
+                    project.getImages().add(image);
+                }
             }
 
-            // Lưu project
-            projectRepository.save(project);
-
-            // Mời thành viên (nếu có)
+            // Mời thành viên
             if (dto.getInvitedEmails() != null && !dto.getInvitedEmails().isEmpty()) {
                 inviteMembers(project, dto.getInvitedEmails(), owner);
             }
 
-            // Response
             ProjectResponse res = ProjectResponse.builder()
                     .id(project.getId())
                     .name(project.getName())
                     .description(project.getDescription())
                     .type(project.getType())
+                    .status(project.getStatus())
                     .dueDate(project.getDueDate())
                     .ownerId(owner.getId())
                     .ownerName(owner.getName())
@@ -147,6 +140,7 @@ public class ProjectService {
             return ResponseDto.success(res, "Project created successfully");
 
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseDto.fail(e.getMessage());
         }
     }

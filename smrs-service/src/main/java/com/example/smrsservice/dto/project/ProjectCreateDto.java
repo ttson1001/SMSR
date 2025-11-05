@@ -14,17 +14,25 @@ public class ProjectCreateDto {
     private String description;
     private String type;
     private Date dueDate;
-    private List<ProjectFileDto> files;
-    private List<ProjectImageDto> images;
     private List<String> invitedEmails;
 
+    // ✅ THÊM 2 FIELDS NÀY
+    private List<FileDto> files;
+    private List<ImageDto> images;
+
+    // ✅ THÊM INNER CLASS FileDto
     @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class FileDto {
         private String filePath;
         private String type;
     }
 
+    // ✅ THÊM INNER CLASS ImageDto
     @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class ImageDto {
         private String url;
     }
