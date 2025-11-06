@@ -1,5 +1,6 @@
 package com.example.smrsservice.service;
 
+import com.example.smrsservice.common.DecisionStatus;
 import com.example.smrsservice.common.ProjectStatus;
 import com.example.smrsservice.dto.common.ResponseDto;
 import com.example.smrsservice.dto.concil.CouncilResponse;
@@ -156,20 +157,18 @@ public class CouncilService {
             Council council = councilRepository.findById(councilId)
                     .orElseThrow(() -> new RuntimeException("Council not found"));
 
-            // Kiểm tra đã gán chưa
             if (projectCouncilRepository.findByProjectIdAndCouncilId(projectId, councilId).isPresent()) {
                 return ResponseDto.fail("Project already assigned to this council");
             }
 
-            // Tạo assignment
+            // ✅ Tạo assignment với enum
             ProjectCouncil projectCouncil = new ProjectCouncil();
             projectCouncil.setProject(project);
             projectCouncil.setCouncil(council);
-            projectCouncil.setDecision("PENDING");
+            projectCouncil.setDecision(DecisionStatus.PENDING);  // ✅ Dùng enum
 
             projectCouncilRepository.save(projectCouncil);
 
-            // Cập nhật project status
             project.setStatus(ProjectStatus.IN_REVIEW);
             projectRepository.save(project);
 
@@ -230,44 +229,40 @@ public class CouncilService {
         try {
             Account currentUser = getCurrentAccount(authentication);
 
-            // Kiểm tra role DEAN
             if (currentUser.getRole() == null ||
                     !"DEAN".equalsIgnoreCase(currentUser.getRole().getRoleName())) {
                 return ResponseDto.fail("Only deans can make decisions");
             }
 
-            // Lấy dean profile
             CouncilManagerProfile deanProfile = councilProfileRepository
                     .findByAccountId(currentUser.getId())
                     .orElseThrow(() -> new RuntimeException("Dean profile not found"));
 
-            // Lấy project
             Project project = projectRepository.findById(projectId)
                     .orElseThrow(() -> new RuntimeException("Project not found"));
 
-            // Tìm project council assignment
             List<ProjectCouncil> projectCouncils = projectCouncilRepository.findByProjectId(projectId);
             if (projectCouncils.isEmpty()) {
                 return ResponseDto.fail("Project is not assigned to any council");
             }
 
-            // Kiểm tra dean có quyền duyệt không (phải là dean của council được assigned)
             ProjectCouncil projectCouncil = projectCouncils.stream()
                     .filter(pc -> pc.getCouncil().getDean().getId().equals(deanProfile.getId()))
                     .findFirst()
                     .orElseThrow(() -> new RuntimeException("You are not authorized to review this project"));
 
-            // Kiểm tra đã quyết định chưa
-            if (!"PENDING".equals(projectCouncil.getDecision())) {
+            // ✅ Kiểm tra đã quyết định chưa
+            if (projectCouncil.getDecision() != DecisionStatus.PENDING) {
                 return ResponseDto.fail("Decision already made for this project: " + projectCouncil.getDecision());
             }
 
-            // Validate decision
-            if (!"APPROVED".equals(request.getDecision()) && !"REJECTED".equals(request.getDecision())) {
+            // ✅ Validate decision - SỬA LẠI ĐÚNG
+            if (request.getDecision() != DecisionStatus.APPROVED &&
+                    request.getDecision() != DecisionStatus.REJECTED) {
                 return ResponseDto.fail("Decision must be APPROVED or REJECTED");
             }
 
-            // Cập nhật decision
+            // ✅ Cập nhật decision
             projectCouncil.setDecision(request.getDecision());
             projectCouncil.setComment(request.getComment());
             projectCouncil.setDecisionDate(Instant.now());
@@ -275,8 +270,8 @@ public class CouncilService {
 
             projectCouncilRepository.save(projectCouncil);
 
-            // Cập nhật project status
-            if ("APPROVED".equals(request.getDecision())) {
+            // ✅ Cập nhật project status
+            if (request.getDecision() == DecisionStatus.APPROVED) {
                 project.setStatus(ProjectStatus.APPROVED);
                 System.out.println("✅ Project " + projectId + " APPROVED by dean " + currentUser.getName());
             } else {

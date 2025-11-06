@@ -1,5 +1,6 @@
 package com.example.smrsservice.entity;
 
+import com.example.smrsservice.common.DecisionStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -29,8 +30,9 @@ public class ProjectCouncil {
     @JoinColumn(name = "council_id", nullable = false)
     private Council council;
 
+    @Enumerated(EnumType.STRING)  // ✅ Dùng enum
     @Column(length = 20)
-    private String decision = "PENDING";
+    private DecisionStatus decision = DecisionStatus.PENDING;
 
     @Column(columnDefinition = "TEXT")
     private String comment;
@@ -49,4 +51,5 @@ public class ProjectCouncil {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private Instant updatedAt;
+
 }
