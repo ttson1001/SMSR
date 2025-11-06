@@ -45,6 +45,7 @@ public class AccountService {
         var acc = accountRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Email not found"));
 
+
         if (!passwordEncoder.matches(request.getPassword(), acc.getPassword())) {
             throw new RuntimeException("Invalid credentials");
         }

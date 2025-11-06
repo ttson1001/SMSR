@@ -55,7 +55,7 @@ public class TaskController {
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(taskService.getTasksByProject(projectId, page, size));
     }
-    
+
     @GetMapping("/project/{projectId}/status/{status}")
     public ResponseEntity<PageResponse<TaskResponse>> getTasksByProjectAndStatus(
             @PathVariable Integer projectId,

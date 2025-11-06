@@ -11,6 +11,8 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "council_manager_profile")
@@ -24,38 +26,41 @@ public class CouncilManagerProfile {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "account_id")
+    @OneToOne
+    @JoinColumn(name = "account_id", nullable = false, unique = true)
     private Account account;
 
-    @Column(name = "employee_code", length = 32, nullable = false)
-    private String employeeCode;         // Mã cán bộ (duy nhất)
+    @Column(name = "employee_code", length = 50, unique = true)
+    private String employeeCode;
 
-    @Column(name = "department", length = 100)
-    private String department;           // Khoa/Phòng/Ban
+    @Column(length = 200)
+    private String department;
 
     @Column(name = "position_title", length = 100)
-    private String positionTitle;        // Chức danh (VD: Trưởng ban, Điều phối…)
+    private String positionTitle;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", length = 20, nullable = false)
+    @Column(length = 20)
     private CouncilManagerStatus status = CouncilManagerStatus.ACTIVE;
 
     @Column(name = "start_date")
-    private LocalDate startDate;         // Ngày bắt đầu bổ nhiệm
+    private LocalDate startDate;
 
     @Column(name = "end_date")
-    private LocalDate endDate;           // Ngày kết thúc (nếu có)
+    private LocalDate endDate;
 
-    @Column(name = "note", columnDefinition = "TEXT")
-    private String note;                 // Ghi chú
-
-    // Audit
+    // ✅ THÊM CÁC TIMESTAMP
     @CreationTimestamp
-    @Column(name = "created_at", updatable = false, nullable = false)
+    @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 
     @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
+    @Column(name = "updated_at")
     private Instant updatedAt;
+
+    @OneToMany(mappedBy = "dean", cascade = CascadeType.ALL)
+    private List<Council> councils = new ArrayList<>();
+
+    @OneToMany(mappedBy = "decidedBy")
+    private List<ProjectCouncil> decisions = new ArrayList<>();
 }

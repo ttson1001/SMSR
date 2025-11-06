@@ -69,6 +69,10 @@ public class Project {
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProjectScore> scores = new ArrayList<>();
 
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL)
+    private List<ProjectCouncil> projectCouncils = new ArrayList<>();
+
+
     // ✅ HELPER METHODS
     public void addFile(ProjectFile file) {
         files.add(file);
