@@ -14,7 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -63,27 +65,37 @@ public class CouncilService {
             council.setStatus("ACTIVE");
 
             councilRepository.save(council);
-
-            System.out.println("✅ Council created: " + council.getCouncilCode());
-
-            // Assign lecturers vào hội đồng
+            // Assign lecturers bằng email
             int assignedCount = 0;
-            if (request.getLecturerIds() != null && !request.getLecturerIds().isEmpty()) {
-                for (Integer lecturerId : request.getLecturerIds()) {
+            List<String> notFoundEmails = new ArrayList<>();
+            List<String> notLecturerEmails = new ArrayList<>();
+
+            if (request.getLecturerEmails() != null && !request.getLecturerEmails().isEmpty()) {
+                for (String email : request.getLecturerEmails()) {
                     try {
-                        Account lecturer = accountRepository.findById(lecturerId)
-                                .orElseThrow(() -> new RuntimeException("Lecturer not found: " + lecturerId));
+                        // ✅ Tìm lecturer bằng email
+                        Optional<Account> lecturerOpt = accountRepository.findByEmail(email.trim());
+
+                        if (lecturerOpt.isEmpty()) {
+                            notFoundEmails.add(email);
+                            System.out.println("⚠️ Email not found: " + email);
+                            continue;
+                        }
+
+                        Account lecturer = lecturerOpt.get();
 
                         // Kiểm tra phải là lecturer
                         if (lecturer.getRole() == null ||
                                 !"LECTURER".equalsIgnoreCase(lecturer.getRole().getRoleName())) {
-                            System.out.println("⚠️ Account " + lecturerId + " is not a lecturer, skipped");
+                            notLecturerEmails.add(email);
+                            System.out.println("⚠️ Account " + email + " is not a lecturer, skipped");
                             continue;
                         }
 
                         // Kiểm tra đã assign chưa
-                        if (councilMemberRepository.existsByCouncilIdAndLecturerId(council.getId(), lecturerId)) {
-                            System.out.println("⚠️ Lecturer " + lecturerId + " already in council, skipped");
+                        if (councilMemberRepository.existsByCouncilIdAndLecturerId(
+                                council.getId(), lecturer.getId())) {
+                            System.out.println("⚠️ Lecturer " + email + " already in council, skipped");
                             continue;
                         }
 
@@ -96,18 +108,32 @@ public class CouncilService {
                         councilMemberRepository.save(member);
                         assignedCount++;
 
-                        System.out.println("✅ Assigned lecturer: " + lecturer.getName());
+                        System.out.println("✅ Assigned lecturer: " + lecturer.getName() + " (" + email + ")");
 
                     } catch (Exception e) {
-                        System.out.println("❌ Error assigning lecturer " + lecturerId + ": " + e.getMessage());
+                        System.out.println("❌ Error assigning lecturer " + email + ": " + e.getMessage());
                     }
                 }
             }
 
             System.out.println("✅ Total lecturers assigned: " + assignedCount);
 
+            // ✅ Tạo message với thông tin chi tiết
+            StringBuilder message = new StringBuilder("Council created successfully");
+            if (assignedCount > 0) {
+                message.append(" with ").append(assignedCount).append(" member(s)");
+            }
+
+            if (!notFoundEmails.isEmpty()) {
+                message.append(". ⚠️ Email not found: ").append(String.join(", ", notFoundEmails));
+            }
+
+            if (!notLecturerEmails.isEmpty()) {
+                message.append(". ⚠️ Not lecturer accounts: ").append(String.join(", ", notLecturerEmails));
+            }
+
             CouncilResponse response = buildCouncilResponse(council);
-            return ResponseDto.success(response, "Council created successfully with " + assignedCount + " members");
+            return ResponseDto.success(response, message.toString());
 
         } catch (Exception e) {
             e.printStackTrace();

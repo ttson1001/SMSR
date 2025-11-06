@@ -10,5 +10,5 @@ public class CreateCouncilRequest {
     private String councilName;
     private String department;
     private String description;
-    private List<Integer> lecturerIds;
+    private List<String> lecturerEmails;
 }
