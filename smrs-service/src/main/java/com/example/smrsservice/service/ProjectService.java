@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -95,6 +96,7 @@ public class ProjectService {
             project.setType(dto.getType());
             project.setDueDate(dto.getDueDate());
             project.setOwner(owner);
+            project.setStatus(ProjectStatus.PENDING);
 
             // Map files
             if (dto.getFiles() != null && !dto.getFiles().isEmpty()) {
@@ -126,16 +128,10 @@ public class ProjectService {
                 inviteMembers(project, dto.getInvitedEmails(), owner);
             }
 
-            ProjectResponse res = ProjectResponse.builder()
-                    .id(project.getId())
-                    .name(project.getName())
-                    .description(project.getDescription())
-                    .type(project.getType())
-                    .status(project.getStatus())
-                    .dueDate(project.getDueDate())
-                    .ownerId(owner.getId())
-                    .ownerName(owner.getName())
-                    .build();
+            projectRepository.save(project); 
+            ProjectResponse res = toResponse(project);
+
+
 
             return ResponseDto.success(res, "Project created successfully");
 
@@ -282,14 +278,46 @@ public class ProjectService {
     }
 
     private ProjectResponse toResponse(Project p) {
+        List<ProjectResponse.FileInfo> files = (p.getFiles() != null)
+                ? p.getFiles().stream()
+                .map(f -> ProjectResponse.FileInfo.builder()
+                        .id(f.getId())
+                        .fileName(f.getFilePath())
+                        .fileUrl(f.getFilePath())
+                        .fileType(f.getType())
+                        .build())
+                .collect(Collectors.toList())
+                : new ArrayList<>();
+
+        // ✅ Lấy images
+        List<String> images = (p.getImages() != null)
+                ? p.getImages().stream()
+                .map(ProjectImage::getUrl)
+                .collect(Collectors.toList())
+                : new ArrayList<>();
+
+
+        Instant dueDate = (p.getDueDate() != null)
+                ? p.getDueDate().toInstant()
+                : null;
+
+        Instant createdAt = (p.getCreateDate() != null)
+                ? p.getCreateDate().toInstant()
+                : null;
+
         return ProjectResponse.builder()
                 .id(p.getId())
                 .name(p.getName())
                 .description(p.getDescription())
                 .type(p.getType())
-                .dueDate(p.getDueDate())
+                .dueDate(dueDate)
                 .ownerId(p.getOwner() != null ? p.getOwner().getId() : null)
                 .ownerName(p.getOwner() != null ? p.getOwner().getName() : null)
+                .ownerEmail(p.getOwner() != null ? p.getOwner().getEmail() : null)
+                .status(p.getStatus())
+                .createdAt(createdAt)
+                .files(files)
+                .images(images)
                 .build();
     }
 
