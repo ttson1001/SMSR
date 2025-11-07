@@ -1,6 +1,7 @@
 package com.example.smrsservice.controller;
 
 
+import com.example.smrsservice.common.ProjectStatus;
 import com.example.smrsservice.dto.common.ResponseDto;
 import com.example.smrsservice.dto.project.ProjectCreateDto;
 import com.example.smrsservice.dto.project.ProjectDetailResponse;
@@ -33,9 +34,12 @@ public class ProjectController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "id") String sortBy,
-            @RequestParam(defaultValue = "desc") String sortDir
+            @RequestParam(defaultValue = "desc") String sortDir,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) ProjectStatus status,
+            @RequestParam(required = false) Integer ownerId
     ) {
-        return projectService.getAll(page, size, sortBy, sortDir);
+        return projectService.getAllProjects(page, size, sortBy, sortDir, name, status, ownerId);  // ✅ ĐỔI TÊN METHOD
     }
 
 

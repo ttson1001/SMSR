@@ -9,11 +9,13 @@ import com.example.smrsservice.entity.*;
 import com.example.smrsservice.repository.AccountRepository;
 import com.example.smrsservice.repository.ProjectMemberRepository;
 import com.example.smrsservice.repository.ProjectRepository;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -64,16 +66,85 @@ public class ProjectService {
         return toResponse(p);
     }
 
-    public Page<ProjectResponse> getAll(int page, int size, String sortBy, String sortDir) {
-        java.util.Set<String> allowed = java.util.Set.of("id","name","type","dueDate","description");
+    public Page<ProjectResponse> getAllProjects(
+            int page,
+            int size,
+            String sortBy,
+            String sortDir,
+            String name,
+            ProjectStatus status,
+            Integer ownerId
+    ) {
+        // Validate sortBy
+        Set<String> allowed = Set.of("id", "name", "type", "dueDate", "description", "createDate");
         String by = allowed.contains(sortBy) ? sortBy : "id";
 
+        // Create sort
         Sort sort = "desc".equalsIgnoreCase(sortDir)
                 ? Sort.by(by).descending()
                 : Sort.by(by).ascending();
 
-        Pageable pageable = PageRequest.of(Math.max(page,0), Math.max(size,1), sort);
-        return projectRepository.findAll(pageable).map(this::toResponse);
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(size, 1), sort);
+
+        // Build specifications
+        Page<Project> result;
+
+        boolean hasName = StringUtils.hasText(name);
+        boolean hasStatus = (status != null);
+        boolean hasOwner = (ownerId != null);
+
+        // Apply filters
+        if (!hasName && !hasStatus && !hasOwner) {
+            // No filter
+            result = projectRepository.findAll(pageable);
+        } else {
+            // Use Specification for complex filtering
+            result = projectRepository.findAll(
+                    buildSpecification(name, status, ownerId),
+                    pageable
+            );
+        }
+
+        return result.map(this::toResponse);
+    }
+
+    /**
+     * Build Specification for dynamic filtering
+     */
+    private Specification<Project> buildSpecification(
+            String name,
+            ProjectStatus status,
+            Integer ownerId
+    ) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            // Filter by name (contains)
+            if (StringUtils.hasText(name)) {
+                predicates.add(
+                        criteriaBuilder.like(
+                                criteriaBuilder.lower(root.get("name")),
+                                "%" + name.toLowerCase() + "%"
+                        )
+                );
+            }
+
+            // Filter by status (exact match)
+            if (status != null) {
+                predicates.add(
+                        criteriaBuilder.equal(root.get("status"), status)
+                );
+            }
+
+            // Filter by ownerId (exact match)
+            if (ownerId != null) {
+                predicates.add(
+                        criteriaBuilder.equal(root.get("owner").get("id"), ownerId)
+                );
+            }
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     @Transactional
@@ -128,7 +199,7 @@ public class ProjectService {
                 inviteMembers(project, dto.getInvitedEmails(), owner);
             }
 
-            projectRepository.save(project); 
+            projectRepository.save(project);
             ProjectResponse res = toResponse(project);
 
 

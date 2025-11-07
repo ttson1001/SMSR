@@ -241,9 +241,42 @@ public class CouncilService {
             Project project = projectRepository.findById(projectId)
                     .orElseThrow(() -> new RuntimeException("Project not found"));
 
+            // ✅ LOGIC MỚI - CHO PHÉP REJECT KHÔNG CẦN COUNCIL
+            if (request.getDecision() == DecisionStatus.REJECTED) {
+                // CASE 1: REJECT - Không bắt buộc phải có council
+                List<ProjectCouncil> projectCouncils = projectCouncilRepository.findByProjectId(projectId);
+
+                if (!projectCouncils.isEmpty()) {
+                    // Nếu đã assign council, cập nhật decision trong project_council
+                    ProjectCouncil projectCouncil = projectCouncils.stream()
+                            .filter(pc -> pc.getCouncil().getDean().getId().equals(deanProfile.getId()))
+                            .findFirst()
+                            .orElseThrow(() -> new RuntimeException("You are not authorized to review this project"));
+
+                    if (projectCouncil.getDecision() != DecisionStatus.PENDING) {
+                        return ResponseDto.fail("Decision already made for this project: " + projectCouncil.getDecision());
+                    }
+
+                    projectCouncil.setDecision(DecisionStatus.REJECTED);
+                    projectCouncil.setComment(request.getComment());
+                    projectCouncil.setDecisionDate(Instant.now());
+                    projectCouncil.setDecidedBy(deanProfile);
+                    projectCouncilRepository.save(projectCouncil);
+                }
+                // ✅ Nếu chưa assign council, vẫn cho phép reject trực tiếp
+
+                // Cập nhật project status
+                project.setStatus(ProjectStatus.REJECTED);
+                projectRepository.save(project);
+
+                System.out.println("❌ Project " + projectId + " REJECTED by dean " + currentUser.getName());
+                return ResponseDto.success(null, "Project rejected successfully");
+            }
+
+            // ✅ CASE 2: APPROVE - BẮT BUỘC PHẢI CÓ COUNCIL
             List<ProjectCouncil> projectCouncils = projectCouncilRepository.findByProjectId(projectId);
             if (projectCouncils.isEmpty()) {
-                return ResponseDto.fail("Project is not assigned to any council");
+                return ResponseDto.fail("Project must be assigned to a council before approval");
             }
 
             ProjectCouncil projectCouncil = projectCouncils.stream()
@@ -251,36 +284,28 @@ public class CouncilService {
                     .findFirst()
                     .orElseThrow(() -> new RuntimeException("You are not authorized to review this project"));
 
-            // ✅ Kiểm tra đã quyết định chưa
             if (projectCouncil.getDecision() != DecisionStatus.PENDING) {
                 return ResponseDto.fail("Decision already made for this project: " + projectCouncil.getDecision());
             }
 
-            // ✅ Validate decision - SỬA LẠI ĐÚNG
+            // Validate decision
             if (request.getDecision() != DecisionStatus.APPROVED &&
                     request.getDecision() != DecisionStatus.REJECTED) {
                 return ResponseDto.fail("Decision must be APPROVED or REJECTED");
             }
 
-            // ✅ Cập nhật decision
-            projectCouncil.setDecision(request.getDecision());
+            // Cập nhật decision
+            projectCouncil.setDecision(DecisionStatus.APPROVED);
             projectCouncil.setComment(request.getComment());
             projectCouncil.setDecisionDate(Instant.now());
             projectCouncil.setDecidedBy(deanProfile);
-
             projectCouncilRepository.save(projectCouncil);
 
-            // ✅ Cập nhật project status
-            if (request.getDecision() == DecisionStatus.APPROVED) {
-                project.setStatus(ProjectStatus.APPROVED);
-                System.out.println("✅ Project " + projectId + " APPROVED by dean " + currentUser.getName());
-            } else {
-                project.setStatus(ProjectStatus.REJECTED);
-                System.out.println("❌ Project " + projectId + " REJECTED by dean " + currentUser.getName());
-            }
+            project.setStatus(ProjectStatus.APPROVED);
             projectRepository.save(project);
 
-            return ResponseDto.success(null, "Decision submitted successfully: " + request.getDecision());
+            System.out.println("✅ Project " + projectId + " APPROVED by dean " + currentUser.getName());
+            return ResponseDto.success(null, "Project approved successfully");
 
         } catch (Exception e) {
             e.printStackTrace();
