@@ -1,8 +1,6 @@
 package com.example.smrsservice.service;
-import com.example.smrsservice.dto.milestone.MilestoneCreateDto;
-import com.example.smrsservice.dto.milestone.MilestoneResponseDto;
-import com.example.smrsservice.dto.milestone.MilestoneSubmitReportDto;
-import com.example.smrsservice.dto.milestone.MilestoneUpdateDto;
+
+import com.example.smrsservice.dto.milestone.*;
 import com.example.smrsservice.entity.Account;
 import com.example.smrsservice.entity.Milestone;
 import com.example.smrsservice.entity.Project;
@@ -26,6 +24,9 @@ public class MilestoneService {
     private final ProjectRepository projectRepository;
     private final AccountRepository accountRepository;
 
+    /**
+     * Tạo milestone mới
+     */
     @Transactional
     public MilestoneResponseDto createMilestone(MilestoneCreateDto dto) {
         Project project = projectRepository.findById(dto.getProjectId())
@@ -34,7 +35,7 @@ public class MilestoneService {
         Account creator = accountRepository.findById(dto.getCreateById())
                 .orElseThrow(() -> new RuntimeException("Account not found"));
 
-        // ✅ Kiểm tra nếu đánh dấu isFinal, chỉ được có 1 milestone final
+        // Kiểm tra nếu đánh dấu isFinal, chỉ được có 1 milestone final
         if (Boolean.TRUE.equals(dto.getIsFinal())) {
             boolean existsFinalMilestone = milestoneRepository
                     .existsByProjectIdAndIsFinalTrue(dto.getProjectId());
@@ -49,33 +50,51 @@ public class MilestoneService {
         milestone.setDueDate(dto.getDueDate());
         milestone.setProject(project);
         milestone.setCreateBy(creator);
-        milestone.setIsFinal(dto.getIsFinal() != null ? dto.getIsFinal() : false);  // ✅ Set isFinal
-        milestone.setStatus("Pending");  // ✅ Default status
+        milestone.setStatus("Pending");
+        milestone.setProgressPercent(0.0);
+        milestone.setIsFinal(dto.getIsFinal() != null ? dto.getIsFinal() : false);
 
         milestoneRepository.save(milestone);
 
         return mapToDto(milestone);
     }
 
+    /**
+     * Cập nhật milestone
+     */
     @Transactional
     public MilestoneResponseDto updateMilestone(Integer id, MilestoneUpdateDto dto) {
         Milestone milestone = milestoneRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Milestone not found"));
 
-        milestone.setDescription(dto.getDescription());
-        milestone.setStatus(dto.getStatus());
-        milestone.setProgressPercent(dto.getProgressPercent());
-        milestone.setDueDate(dto.getDueDate());
+        if (dto.getDescription() != null) {
+            milestone.setDescription(dto.getDescription());
+        }
+        if (dto.getStatus() != null) {
+            milestone.setStatus(dto.getStatus());
+        }
+        if (dto.getProgressPercent() != null) {
+            milestone.setProgressPercent(dto.getProgressPercent());
+        }
+        if (dto.getDueDate() != null) {
+            milestone.setDueDate(dto.getDueDate());
+        }
 
         milestoneRepository.save(milestone);
         return mapToDto(milestone);
     }
 
+    /**
+     * Xóa milestone
+     */
     @Transactional
     public void deleteMilestone(Integer id) {
         milestoneRepository.deleteById(id);
     }
 
+    /**
+     * Lấy tất cả milestones của project
+     */
     public List<MilestoneResponseDto> getMilestonesByProject(Integer projectId) {
         return milestoneRepository.findByProject_Id(projectId)
                 .stream()
@@ -83,13 +102,18 @@ public class MilestoneService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Lấy milestone theo ID
+     */
     public MilestoneResponseDto getMilestoneById(Integer id) {
         Milestone milestone = milestoneRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Milestone not found"));
         return mapToDto(milestone);
     }
 
-    // ✅ METHOD MỚI: Leader nộp report
+    /**
+     * Leader nộp report cho milestone
+     */
     @Transactional
     public MilestoneResponseDto submitReport(
             Integer milestoneId,
@@ -100,10 +124,10 @@ public class MilestoneService {
         Milestone milestone = milestoneRepository.findById(milestoneId)
                 .orElseThrow(() -> new RuntimeException("Milestone not found"));
 
-        // Lấy thông tin user hiện tại
+        // Lấy user hiện tại
         Account currentUser = getCurrentAccount(authentication);
 
-        // Kiểm tra user có phải owner của project không
+        // Kiểm tra quyền: Chỉ owner của project mới được nộp report
         if (!milestone.getProject().getOwner().getId().equals(currentUser.getId())) {
             throw new RuntimeException("Only project owner can submit report");
         }
@@ -118,14 +142,19 @@ public class MilestoneService {
         milestone.setReportComment(dto.getReportComment());
         milestone.setReportSubmittedAt(new Date());
         milestone.setReportSubmittedBy(currentUser);
-        milestone.setStatus("Submitted");  // Đổi status thành Submitted
+
+        // Cập nhật status và progress
+        milestone.setStatus("Submitted");
+        milestone.setProgressPercent(100.0);
 
         milestoneRepository.save(milestone);
 
         return mapToDto(milestone);
     }
 
-    // ✅ METHOD MỚI: Lấy milestone cuối cùng của project
+    /**
+     * Lấy final milestone của project
+     */
     public MilestoneResponseDto getFinalMilestone(Integer projectId) {
         Milestone milestone = milestoneRepository
                 .findByProjectIdAndIsFinalTrue(projectId)
@@ -134,6 +163,9 @@ public class MilestoneService {
         return mapToDto(milestone);
     }
 
+    /**
+     * Map Milestone entity sang DTO
+     */
     private MilestoneResponseDto mapToDto(Milestone milestone) {
         return new MilestoneResponseDto(
                 milestone.getId(),
@@ -145,7 +177,7 @@ public class MilestoneService {
                 milestone.getProject() != null ? milestone.getProject().getId() : null,
                 milestone.getCreateBy() != null ? milestone.getCreateBy().getId() : null,
 
-                // ✅ MAP CÁC FIELDS MỚI
+                // Thông tin report
                 milestone.getIsFinal(),
                 milestone.getReportUrl(),
                 milestone.getReportSubmittedAt(),
@@ -155,6 +187,9 @@ public class MilestoneService {
         );
     }
 
+    /**
+     * Lấy thông tin account hiện tại từ Authentication
+     */
     private Account getCurrentAccount(Authentication authentication) {
         if (authentication == null) {
             throw new RuntimeException("User not authenticated");

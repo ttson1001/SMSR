@@ -1,7 +1,8 @@
 package com.example.smrsservice.controller;
 
 import com.example.smrsservice.dto.common.ResponseDto;
-import com.example.smrsservice.service.UploadServic;
+import com.example.smrsservice.dto.upload.FileUploadResponse;
+import com.example.smrsservice.service.UploadService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -18,7 +19,7 @@ import java.util.List;
 @RequestMapping("/api/upload")
 @RequiredArgsConstructor
 public class UploadController {
-    private final UploadServic uploadService;
+    private final UploadService uploadService;
 
     @PostMapping(value = "/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseDto<String> uploadImage(@RequestParam("file") MultipartFile file) {
@@ -30,7 +31,6 @@ public class UploadController {
         }
     }
 
-    @PostMapping("/file")
     public ResponseEntity<ResponseDto<String>> uploadFile(@RequestParam("file") MultipartFile file) {
         try {
             if (file.isEmpty()) {
@@ -48,22 +48,22 @@ public class UploadController {
     }
 
     /**
-     * ✅ Upload nhiều files
+     * ✅ Upload nhiều files - Trả về FileUploadResponse (mới)
      */
     @PostMapping("/files")
-    public ResponseEntity<ResponseDto<List<String>>> uploadMultipleFiles(
+    public ResponseEntity<ResponseDto<List<FileUploadResponse>>> uploadMultipleFiles(
             @RequestParam("files") MultipartFile[] files) {
         try {
-            List<String> urls = new ArrayList<>();
+            List<FileUploadResponse> responses = new ArrayList<>();
 
             for (MultipartFile file : files) {
                 if (!file.isEmpty()) {
-                    String url = uploadService.uploadFile(file);
-                    urls.add(url);
+                    FileUploadResponse response = uploadService.uploadFileWithDetails(file);
+                    responses.add(response);
                 }
             }
 
-            return ResponseEntity.ok(ResponseDto.success(urls, "Files uploaded successfully"));
+            return ResponseEntity.ok(ResponseDto.success(responses, "Files uploaded successfully"));
 
         } catch (Exception e) {
             return ResponseEntity.badRequest()
@@ -71,9 +71,7 @@ public class UploadController {
         }
     }
 
-    /**
-     * Upload auto
-     */
+
     @PostMapping("/auto")
     public ResponseEntity<ResponseDto<String>> uploadAuto(@RequestParam("file") MultipartFile file) {
         try {

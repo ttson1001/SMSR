@@ -20,31 +20,33 @@ public class MilestoneController {
     private final MilestoneService milestoneService;
 
     @PostMapping
-    public MilestoneResponseDto create(@RequestBody MilestoneCreateDto dto) {
-        return milestoneService.createMilestone(dto);
+    public ResponseEntity<MilestoneResponseDto> createMilestone(@RequestBody MilestoneCreateDto dto) {
+        return ResponseEntity.ok(milestoneService.createMilestone(dto));
     }
 
     @PutMapping("/{id}")
-    public MilestoneResponseDto update(@PathVariable Integer id, @RequestBody MilestoneUpdateDto dto) {
-        return milestoneService.updateMilestone(id, dto);
-    }
-
-    @GetMapping("/project/{projectId}")
-    public List<MilestoneResponseDto> getByProject(@PathVariable Integer projectId) {
-        return milestoneService.getMilestonesByProject(projectId);
-    }
-
-    @GetMapping("/{id}")
-    public MilestoneResponseDto getById(@PathVariable Integer id) {
-        return milestoneService.getMilestoneById(id);
+    public ResponseEntity<MilestoneResponseDto> updateMilestone(
+            @PathVariable Integer id,
+            @RequestBody MilestoneUpdateDto dto) {
+        return ResponseEntity.ok(milestoneService.updateMilestone(id, dto));
     }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Integer id) {
+    public ResponseEntity<Void> deleteMilestone(@PathVariable Integer id) {
         milestoneService.deleteMilestone(id);
+        return ResponseEntity.noContent().build();
     }
 
-    // ✅ ENDPOINT MỚI: Leader nộp report
+    @GetMapping("/project/{projectId}")
+    public ResponseEntity<List<MilestoneResponseDto>> getMilestonesByProject(@PathVariable Integer projectId) {
+        return ResponseEntity.ok(milestoneService.getMilestonesByProject(projectId));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<MilestoneResponseDto> getMilestoneById(@PathVariable Integer id) {
+        return ResponseEntity.ok(milestoneService.getMilestoneById(id));
+    }
+
     @PostMapping("/{id}/submit-report")
     public ResponseEntity<MilestoneResponseDto> submitReport(
             @PathVariable Integer id,
@@ -53,7 +55,6 @@ public class MilestoneController {
         return ResponseEntity.ok(milestoneService.submitReport(id, dto, authentication));
     }
 
-    // ✅ ENDPOINT MỚI: Lấy final milestone của project
     @GetMapping("/project/{projectId}/final")
     public ResponseEntity<MilestoneResponseDto> getFinalMilestone(@PathVariable Integer projectId) {
         return ResponseEntity.ok(milestoneService.getFinalMilestone(projectId));
