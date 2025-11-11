@@ -39,4 +39,21 @@ public class Milestone {
     @ManyToOne
     @JoinColumn(name = "project_id")
     private Project project;
+
+    @Column(name = "is_final")
+    private Boolean isFinal = false;  // Đánh dấu milestone cuối cùng
+
+    @Column(name = "report_url", columnDefinition = "TEXT")
+    private String reportUrl;  // URL file report
+
+    @Column(name = "report_submitted_at")
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date reportSubmittedAt;  // Thời gian nộp report
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "report_submitted_by")
+    private Account reportSubmittedBy;  // Người nộp report (leader)
+
+    @Column(name = "report_comment", columnDefinition = "TEXT")
+    private String reportComment;  // Ghi chú khi nộp report
 }

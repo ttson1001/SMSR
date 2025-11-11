@@ -12,4 +12,5 @@ public class MilestoneCreateDto {
     private Date dueDate;
     private Integer projectId;
     private Integer createById;
+    private Boolean isFinal;
 }

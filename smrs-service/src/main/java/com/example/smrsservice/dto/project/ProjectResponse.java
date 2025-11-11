@@ -21,6 +21,7 @@ public class ProjectResponse {
     private Integer ownerId;
     private String ownerName;
     private String ownerEmail;
+    private String ownerRole;
     private ProjectStatus status;
     private Instant createdAt;
 

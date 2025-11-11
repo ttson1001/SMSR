@@ -18,4 +18,11 @@ public class MilestoneResponseDto {
     private Date dueDate;
     private Integer projectId;
     private Integer createById;
+
+    private Boolean isFinal;               // Có phải milestone cuối không
+    private String reportUrl;              // URL file report
+    private Date reportSubmittedAt;        // Thời gian nộp report
+    private Integer reportSubmittedById;   // ID người nộp report
+    private String reportSubmittedByName;  // Tên người nộp report
+    private String reportComment;          // Ghi chú khi nộp
 }

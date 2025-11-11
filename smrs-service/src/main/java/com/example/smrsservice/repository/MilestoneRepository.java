@@ -6,8 +6,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface MilestoneRepository extends JpaRepository<Milestone, Integer> {
     List<Milestone> findByProject_Id(Integer projectId);
+
+    boolean existsByProjectIdAndIsFinalTrue(Integer projectId);
+
+    Optional<Milestone> findByProjectIdAndIsFinalTrue(Integer projectId);
 }

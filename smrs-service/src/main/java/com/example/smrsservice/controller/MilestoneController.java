@@ -2,9 +2,12 @@ package com.example.smrsservice.controller;
 
 import com.example.smrsservice.dto.milestone.MilestoneCreateDto;
 import com.example.smrsservice.dto.milestone.MilestoneResponseDto;
+import com.example.smrsservice.dto.milestone.MilestoneSubmitReportDto;
 import com.example.smrsservice.dto.milestone.MilestoneUpdateDto;
 import com.example.smrsservice.service.MilestoneService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -39,5 +42,20 @@ public class MilestoneController {
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Integer id) {
         milestoneService.deleteMilestone(id);
+    }
+
+    // ✅ ENDPOINT MỚI: Leader nộp report
+    @PostMapping("/{id}/submit-report")
+    public ResponseEntity<MilestoneResponseDto> submitReport(
+            @PathVariable Integer id,
+            @RequestBody MilestoneSubmitReportDto dto,
+            Authentication authentication) {
+        return ResponseEntity.ok(milestoneService.submitReport(id, dto, authentication));
+    }
+
+    // ✅ ENDPOINT MỚI: Lấy final milestone của project
+    @GetMapping("/project/{projectId}/final")
+    public ResponseEntity<MilestoneResponseDto> getFinalMilestone(@PathVariable Integer projectId) {
+        return ResponseEntity.ok(milestoneService.getFinalMilestone(projectId));
     }
 }

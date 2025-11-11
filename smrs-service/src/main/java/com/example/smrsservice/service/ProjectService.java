@@ -385,6 +385,7 @@ public class ProjectService {
                 .ownerId(p.getOwner() != null ? p.getOwner().getId() : null)
                 .ownerName(p.getOwner() != null ? p.getOwner().getName() : null)
                 .ownerEmail(p.getOwner() != null ? p.getOwner().getEmail() : null)
+                .ownerRole(p.getOwner() != null && p.getOwner().getRole() != null ? p.getOwner().getRole().getRoleName() : null)
                 .status(p.getStatus())
                 .createdAt(createdAt)
                 .files(files)
