@@ -57,5 +57,7 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, In
     @Query("SELECT pm FROM ProjectMember pm WHERE pm.project.id = :projectId " +
             "AND pm.memberRole = 'LECTURER'")
     Optional<ProjectMember> findLecturerByProjectIdAllStatus(@Param("projectId") Integer projectId);
+
+
 }
 

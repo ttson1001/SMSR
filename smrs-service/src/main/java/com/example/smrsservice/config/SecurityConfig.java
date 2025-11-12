@@ -50,6 +50,8 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/api/milestones",
+                                "/api/project-members/accept/**",
+                                "/api/project-members/reject/**",
                                 "api/projects",
                                 "/api/students/*/profile"
                         ).permitAll()

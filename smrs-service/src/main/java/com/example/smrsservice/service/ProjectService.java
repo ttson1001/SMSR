@@ -215,7 +215,14 @@ public class ProjectService {
     /**
      * Mời danh sách thành viên vào project với validation
      */
+    /**
+     * Mời danh sách thành viên vào project với validation
+     */
     private void inviteMembers(Project project, List<String> emails, Account owner) {
+        if (emails == null || emails.isEmpty()) {
+            return;
+        }
+
         int lecturerCount = 0;
         int studentCount = 0;
 
@@ -296,21 +303,37 @@ public class ProjectService {
                 member.setMemberRole(roleName.toUpperCase());
                 projectMemberRepository.save(member);
 
-                // Gửi email
-                mailService.sendProjectInvitation(
-                        invitedAccount.getEmail(),
-                        invitedAccount.getName(),
-                        project.getName(),
-                        owner.getName(),
-                        roleName.toUpperCase()
-                );
+                // ✅ TẠO TOKEN
+                String invitationToken = generateInvitationToken(member.getId());
 
-                System.out.println("Successfully invited: " + email);
+                // ✅ GỬI EMAIL
+                try {
+                    mailService.sendProjectInvitation(
+                            invitedAccount.getEmail(),
+                            invitedAccount.getName(),
+                            project.getName(),
+                            owner.getName(),
+                            roleName.toUpperCase(),
+                            member.getId(),
+                            invitationToken  // ✅ DÒNG NÀY BỊ THIẾU
+                    );
+                    System.out.println("✅ Successfully invited: " + email);
+                } catch (Exception emailEx) {
+                    System.err.println("Failed to send email to " + email + ": " + emailEx.getMessage());
+                }
 
             } catch (Exception e) {
                 System.err.println("Error inviting " + email + ": " + e.getMessage());
             }
         }
+    }
+    private String generateInvitationToken(Integer invitationId) {
+        String secretKey = "smrs-invitation-secret-key-2025";
+        long timestamp = System.currentTimeMillis();
+        String data = invitationId + ":" + secretKey + ":" + timestamp;
+
+        return java.util.Base64.getEncoder()
+                .encodeToString(data.getBytes());
     }
 
     public Page<ProjectResponse> searchProjects(

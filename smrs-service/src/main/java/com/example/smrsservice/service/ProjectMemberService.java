@@ -329,18 +329,26 @@ public class ProjectMemberService {
                     member.setMemberRole(roleName.toUpperCase());
                     projectMemberRepository.save(member);
 
-                    // Gửi email
+
+// Tạo token
+                    String invitationToken = generateInvitationToken(member.getId());
+
+// Gửi email
                     try {
                         mailService.sendProjectInvitation(
                                 invitedAccount.getEmail(),
                                 invitedAccount.getName(),
                                 project.getName(),
-                                currentUser.getName(),
-                                roleName.toUpperCase()
+                                currentUser.getName(),  // ✅ SỬA Ở ĐÂY
+                                roleName.toUpperCase(),
+                                member.getId(),
+                                invitationToken
                         );
                     } catch (Exception emailEx) {
-                        System.err.println("Failed to send email to " + trimmedEmail + ": " + emailEx.getMessage());
+                        System.err.println("Failed to send email to " + invitedAccount.getEmail() + ": " + emailEx.getMessage());
                     }
+
+                    System.out.println("✅ Invitation sent to: " + invitedAccount.getEmail());
 
                     successEmails.add(trimmedEmail);
 
@@ -412,6 +420,154 @@ public class ProjectMemberService {
 
         } catch (Exception e) {
             return ResponseDto.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * ✅ Accept invitation từ email (không cần authentication)
+     */
+    @Transactional
+    public ResponseDto<ProjectMemberResponse> acceptInvitationFromEmail(
+            Integer invitationId,
+            String token) {
+        try {
+            // Verify token
+            if (!verifyInvitationToken(invitationId, token)) {
+                return ResponseDto.fail("Invalid or expired invitation link");
+            }
+
+            ProjectMember invitation = projectMemberRepository.findById(invitationId)
+                    .orElseThrow(() -> new RuntimeException("Invitation not found"));
+
+            // Kiểm tra trạng thái
+            if (!"Pending".equals(invitation.getStatus())) {
+                return ResponseDto.fail("This invitation has already been processed");
+            }
+
+            // Kiểm tra user có đang tham gia project active nào không
+            boolean hasActiveProject = projectMemberRepository.hasActiveProject(
+                    invitation.getAccount().getId()
+            );
+            if (hasActiveProject) {
+                return ResponseDto.fail("You are already in an active project");
+            }
+
+            // Validate theo role
+            if ("LECTURER".equalsIgnoreCase(invitation.getMemberRole())) {
+                Optional<ProjectMember> existingLecturer = projectMemberRepository
+                        .findLecturerByProjectId(invitation.getProject().getId());
+
+                if (existingLecturer.isPresent()) {
+                    return ResponseDto.fail("This project already has a lecturer");
+                }
+
+            } else if ("STUDENT".equalsIgnoreCase(invitation.getMemberRole())) {
+                long currentStudents = projectMemberRepository
+                        .countByProjectIdAndMemberRoleAndStatus(
+                                invitation.getProject().getId(),
+                                "STUDENT",
+                                "Approved"
+                        );
+
+                if (currentStudents >= MAX_STUDENTS_PER_PROJECT) {
+                    return ResponseDto.fail("Maximum students reached");
+                }
+            }
+
+            // Approve
+            invitation.setStatus("Approved");
+            projectMemberRepository.save(invitation);
+
+            ProjectMemberResponse response = convertToResponse(invitation);
+
+            return ResponseDto.success(response, "Invitation accepted successfully");
+
+        } catch (Exception e) {
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * ✅ Reject invitation từ email (không cần authentication)
+     */
+    @Transactional
+    public ResponseDto<ProjectMemberResponse> rejectInvitationFromEmail(
+            Integer invitationId,
+            String token) {
+        try {
+            // Verify token
+            if (!verifyInvitationToken(invitationId, token)) {
+                return ResponseDto.fail("Invalid or expired invitation link");
+            }
+
+            ProjectMember invitation = projectMemberRepository.findById(invitationId)
+                    .orElseThrow(() -> new RuntimeException("Invitation not found"));
+
+            // Kiểm tra trạng thái
+            if ("Cancelled".equals(invitation.getStatus())) {
+                return ResponseDto.fail("This invitation has already been cancelled");
+            }
+
+            invitation.setStatus("Cancelled");
+            projectMemberRepository.save(invitation);
+
+            ProjectMemberResponse response = convertToResponse(invitation);
+
+            return ResponseDto.success(response, "Invitation rejected successfully");
+
+        } catch (Exception e) {
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * ✅ Tạo token cho invitation
+     */
+    private String generateInvitationToken(Integer invitationId) {
+        String secretKey = "smrs-invitation-secret-key-2025";
+        long timestamp = System.currentTimeMillis();
+        String data = invitationId + ":" + secretKey + ":" + timestamp;
+
+        return java.util.Base64.getEncoder()
+                .encodeToString(data.getBytes());
+    }
+
+    /**
+     * ✅ Verify token
+     */
+    private boolean verifyInvitationToken(Integer invitationId, String token) {
+        try {
+            String decoded = new String(java.util.Base64.getDecoder().decode(token));
+            String[] parts = decoded.split(":");
+
+            if (parts.length != 3) {
+                return false;
+            }
+
+            Integer tokenInvitationId = Integer.parseInt(parts[0]);
+            String tokenSecret = parts[1];
+            long timestamp = Long.parseLong(parts[2]);
+
+            // Kiểm tra invitation ID
+            if (!tokenInvitationId.equals(invitationId)) {
+                return false;
+            }
+
+            // Kiểm tra secret
+            if (!"smrs-invitation-secret-key-2025".equals(tokenSecret)) {
+                return false;
+            }
+
+            // Kiểm tra token có hết hạn không (7 ngày)
+            long sevenDaysInMs = 7L * 24 * 60 * 60 * 1000;
+            if (System.currentTimeMillis() - timestamp > sevenDaysInMs) {
+                return false;
+            }
+
+            return true;
+
+        } catch (Exception e) {
+            return false;
         }
     }
 
