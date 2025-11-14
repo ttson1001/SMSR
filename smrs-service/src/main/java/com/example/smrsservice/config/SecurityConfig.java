@@ -74,7 +74,8 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:9002",
-                "https://scientific-research-f5b61.web.app/"
+                "https://scientific-research-f5b61.web.app/",
+                "https://smrs.space/"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));

@@ -33,7 +33,7 @@ public class UploadController {
         }
     }
     
-    @PostMapping( value = "/singleFile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping( value = "/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ResponseDto<String>> uploadFile(@RequestParam("file") MultipartFile file) {
         try {
             if (file.isEmpty()) {
