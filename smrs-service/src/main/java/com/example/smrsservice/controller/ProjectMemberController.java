@@ -19,7 +19,6 @@ public class ProjectMemberController {
 
     private final ProjectMemberService projectMemberService;
 
-
     /**
      * Lấy lời mời của user hiện tại
      */
@@ -183,11 +182,11 @@ public class ProjectMemberController {
     }
 
     /**
-     * Lấy active project của user
+     * ✅ Lấy tất cả active projects của user
      */
-    @GetMapping("/active-project")
-    public ResponseEntity<ResponseDto<ProjectMemberResponse>> getMyActiveProject() {
-        return ResponseEntity.ok(projectMemberService.getMyActiveProject());
+    @GetMapping("/active-projects")
+    public ResponseEntity<ResponseDto<List<ProjectMemberResponse>>> getMyActiveProjects() {
+        return ResponseEntity.ok(projectMemberService.getMyActiveProjects());
     }
 
     /**
@@ -224,5 +223,4 @@ public class ProjectMemberController {
                 projectMemberService.removeMember(projectId, memberId, authentication)
         );
     }
-
 }

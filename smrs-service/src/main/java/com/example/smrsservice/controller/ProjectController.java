@@ -1,8 +1,8 @@
 package com.example.smrsservice.controller;
 
-
 import com.example.smrsservice.common.ProjectStatus;
 import com.example.smrsservice.dto.common.ResponseDto;
+import com.example.smrsservice.dto.project.PickProjectRequest;
 import com.example.smrsservice.dto.project.ProjectCreateDto;
 import com.example.smrsservice.dto.project.ProjectDetailResponse;
 import com.example.smrsservice.dto.project.ProjectResponse;
@@ -37,11 +37,10 @@ public class ProjectController {
             @RequestParam(defaultValue = "desc") String sortDir,
             @RequestParam(required = false) String name,
             @RequestParam(required = false) ProjectStatus status,
-            @RequestParam(required = false) Integer ownerId
-    ) {
-        return projectService.getAllProjects(page, size, sortBy, sortDir, name, status, ownerId);  // ✅ ĐỔI TÊN METHOD
+            @RequestParam(required = false) Integer ownerId,
+            @RequestParam(required = false) Integer majorId) {
+        return projectService.getAllProjects(page, size, sortBy, sortDir, name, status, ownerId, majorId);
     }
-
 
     @PostMapping
     public ResponseEntity<ResponseDto<ProjectResponse>> createProject(
@@ -50,7 +49,6 @@ public class ProjectController {
 
         ResponseDto<ProjectResponse> response = projectService.createProject(dto, authentication);
 
-        // Nếu fail thì trả về 400/404, không phải 200
         if (!response.isSuccess()) {
             return ResponseEntity.badRequest().body(response);
         }
@@ -58,6 +56,13 @@ public class ProjectController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/{projectId}/pick")
+    public ResponseEntity<ResponseDto<ProjectResponse>> pickArchivedProject(
+            @PathVariable Integer projectId,
+            @RequestBody PickProjectRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(projectService.pickArchivedProject(projectId, request, authentication));
+    }
 
     @GetMapping("/search")
     public Page<ProjectResponse> search(

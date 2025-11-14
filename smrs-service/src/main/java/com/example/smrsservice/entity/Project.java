@@ -72,6 +72,10 @@ public class Project {
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL)
     private List<ProjectCouncil> projectCouncils = new ArrayList<>();
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "major_id")
+    private Major major;
+
 
     // ✅ HELPER METHODS
     public void addFile(ProjectFile file) {

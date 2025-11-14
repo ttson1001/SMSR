@@ -10,7 +10,8 @@ public enum ProjectStatus {
     REJECTED("Rejected"),
     IN_PROGRESS("InProgress"),
     COMPLETED("Completed"),
-    CANCELLED("Cancelled");
+    CANCELLED("Cancelled"),
+    ARCHIVED("Archived");
 
     private final String jsonName;
 
@@ -18,13 +19,11 @@ public enum ProjectStatus {
         this.jsonName = jsonName;
     }
 
-    // Trả ra chuỗi “đẹp” cho JSON (ví dụ: InReview thay vì IN_REVIEW)
     @JsonValue
     public String getJsonName() {
         return jsonName;
     }
 
-    // Cho phép parse case-insensitive & chấp nhận cả enum name lẫn jsonName
     @JsonCreator
     public static ProjectStatus from(String value) {
         if (value == null) throw new IllegalArgumentException("Status is required");
@@ -36,16 +35,16 @@ public enum ProjectStatus {
         throw new IllegalArgumentException("Invalid status: " + value);
     }
 
-    // Rule chuyển trạng thái (đặt trong enum cho “pro”)
     public boolean canTransitionTo(ProjectStatus target) {
         if (this == target) return true;
         return switch (this) {
-            case PENDING     -> target == IN_REVIEW || target == CANCELLED;
-            case IN_REVIEW   -> target == APPROVED || target == REJECTED || target == CANCELLED;
-            case APPROVED    -> target == IN_PROGRESS || target == CANCELLED;
+            case PENDING -> target == IN_REVIEW || target == CANCELLED;
+            case IN_REVIEW -> target == APPROVED || target == REJECTED || target == CANCELLED;
+            case APPROVED -> target == IN_PROGRESS || target == CANCELLED;
             case IN_PROGRESS -> target == COMPLETED || target == CANCELLED;
-            case REJECTED    -> target == CANCELLED;
-            case COMPLETED, CANCELLED -> false; // terminal
+            case REJECTED -> target == CANCELLED;
+            case ARCHIVED -> target == PENDING;
+            case COMPLETED, CANCELLED -> false;
         };
     }
 

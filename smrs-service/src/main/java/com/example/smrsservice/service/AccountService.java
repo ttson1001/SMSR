@@ -372,6 +372,38 @@ public class AccountService {
     }
 
 
-    // chỉnh sửa
+    @Transactional
+    public ResponseDto<Account> updateProfile(UpdateAccountDto request) {
+        try {
+            // Lấy user hiện tại từ SecurityContext
+            Authentication authentication = org.springframework.security.core.context.SecurityContextHolder
+                    .getContext().getAuthentication();
+
+            Account currentUser = currentAccount(authentication);
+
+            if (request.getName() != null) {
+                currentUser.setName(request.getName());
+            }
+
+            if (request.getPhone() != null) {
+                currentUser.setPhone(request.getPhone());
+            }
+
+            if (request.getAvatar() != null) {
+                currentUser.setAvatar(request.getAvatar());
+            }
+
+            if (request.getAge() != null) {
+                currentUser.setAge(request.getAge());
+            }
+
+            accountRepository.save(currentUser);
+
+            return ResponseDto.success(currentUser, "Profile updated successfully");
+
+        } catch (Exception e) {
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
 
 }

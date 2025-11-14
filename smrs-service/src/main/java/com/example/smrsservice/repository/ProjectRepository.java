@@ -65,6 +65,10 @@ public interface ProjectRepository extends JpaRepository<Project, Integer>, JpaS
             "WHERE p.id = :id")
     Optional<Project> findByIdWithFilesAndImages(@Param("id") Integer id);
 
+    long countByStatus(ProjectStatus status);
+
+    long countByOwnerId(Integer ownerId);
+
 
 
 

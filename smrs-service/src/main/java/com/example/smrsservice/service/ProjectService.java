@@ -1,10 +1,8 @@
 package com.example.smrsservice.service;
+
 import com.example.smrsservice.common.ProjectStatus;
 import com.example.smrsservice.dto.common.ResponseDto;
-import com.example.smrsservice.dto.project.ProjectCreateDto;
-import com.example.smrsservice.dto.project.ProjectDetailResponse;
-import com.example.smrsservice.dto.project.ProjectResponse;
-import com.example.smrsservice.dto.project.UpdateProjectStatusRequest;
+import com.example.smrsservice.dto.project.*;
 import com.example.smrsservice.entity.*;
 import com.example.smrsservice.repository.AccountRepository;
 import com.example.smrsservice.repository.ProjectMemberRepository;
@@ -73,34 +71,30 @@ public class ProjectService {
             String sortDir,
             String name,
             ProjectStatus status,
-            Integer ownerId
-    ) {
-        // Validate sortBy
+            Integer ownerId,
+            Integer majorId) {
+
         Set<String> allowed = Set.of("id", "name", "type", "dueDate", "description", "createDate");
         String by = allowed.contains(sortBy) ? sortBy : "id";
 
-        // Create sort
         Sort sort = "desc".equalsIgnoreCase(sortDir)
                 ? Sort.by(by).descending()
                 : Sort.by(by).ascending();
 
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(size, 1), sort);
 
-        // Build specifications
         Page<Project> result;
 
         boolean hasName = StringUtils.hasText(name);
         boolean hasStatus = (status != null);
         boolean hasOwner = (ownerId != null);
+        boolean hasMajor = (majorId != null);
 
-        // Apply filters
-        if (!hasName && !hasStatus && !hasOwner) {
-            // No filter
+        if (!hasName && !hasStatus && !hasOwner && !hasMajor) {
             result = projectRepository.findAll(pageable);
         } else {
-            // Use Specification for complex filtering
             result = projectRepository.findAll(
-                    buildSpecification(name, status, ownerId),
+                    buildSpecification(name, status, ownerId, majorId),
                     pageable
             );
         }
@@ -108,18 +102,14 @@ public class ProjectService {
         return result.map(this::toResponse);
     }
 
-    /**
-     * Build Specification for dynamic filtering
-     */
     private Specification<Project> buildSpecification(
             String name,
             ProjectStatus status,
-            Integer ownerId
+            Integer ownerId, Integer majorId
     ) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // Filter by name (contains)
             if (StringUtils.hasText(name)) {
                 predicates.add(
                         criteriaBuilder.like(
@@ -129,19 +119,24 @@ public class ProjectService {
                 );
             }
 
-            // Filter by status (exact match)
             if (status != null) {
                 predicates.add(
                         criteriaBuilder.equal(root.get("status"), status)
                 );
             }
 
-            // Filter by ownerId (exact match)
             if (ownerId != null) {
                 predicates.add(
                         criteriaBuilder.equal(root.get("owner").get("id"), ownerId)
                 );
             }
+            if (majorId != null) {
+                predicates.add(
+                        criteriaBuilder.equal(root.get("major").get("id"), majorId)
+                );
+            }
+
+
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
@@ -169,11 +164,8 @@ public class ProjectService {
             project.setOwner(owner);
             project.setStatus(ProjectStatus.PENDING);
 
-            // Map files
             if (dto.getFiles() != null && !dto.getFiles().isEmpty()) {
-                System.out.println(">>> Mapping files...");
                 for (ProjectCreateDto.FileDto f : dto.getFiles()) {
-                    System.out.println("  - File: " + f.getFilePath() + " | Type: " + f.getType());
                     ProjectFile file = new ProjectFile();
                     file.setFilePath(f.getFilePath());
                     file.setType(f.getType());
@@ -182,11 +174,8 @@ public class ProjectService {
                 }
             }
 
-            // Map images
             if (dto.getImages() != null && !dto.getImages().isEmpty()) {
-                System.out.println(">>> Mapping images...");
                 for (ProjectCreateDto.ImageDto i : dto.getImages()) {
-                    System.out.println("  - Image: " + i.getUrl());
                     ProjectImage image = new ProjectImage();
                     image.setUrl(i.getUrl());
                     image.setProject(project);
@@ -194,15 +183,13 @@ public class ProjectService {
                 }
             }
 
-            // Mời thành viên
+            projectRepository.save(project);
+
             if (dto.getInvitedEmails() != null && !dto.getInvitedEmails().isEmpty()) {
                 inviteMembers(project, dto.getInvitedEmails(), owner);
             }
 
-            projectRepository.save(project);
             ProjectResponse res = toResponse(project);
-
-
 
             return ResponseDto.success(res, "Project created successfully");
 
@@ -212,12 +199,6 @@ public class ProjectService {
         }
     }
 
-    /**
-     * Mời danh sách thành viên vào project với validation
-     */
-    /**
-     * Mời danh sách thành viên vào project với validation
-     */
     private void inviteMembers(Project project, List<String> emails, Account owner) {
         if (emails == null || emails.isEmpty()) {
             return;
@@ -226,7 +207,6 @@ public class ProjectService {
         int lecturerCount = 0;
         int studentCount = 0;
 
-        // Kiểm tra số lượng hiện tại
         long currentLecturers = projectMemberRepository.countByProjectIdAndMemberRoleAndStatus(
                 project.getId(), "LECTURER", "Approved");
         long currentStudents = projectMemberRepository.countByProjectIdAndMemberRoleAndStatus(
@@ -234,7 +214,6 @@ public class ProjectService {
 
         for (String email : emails) {
             try {
-                // Tìm account theo email
                 Account invitedAccount = accountRepository.findByEmail(email.trim())
                         .orElse(null);
 
@@ -243,26 +222,16 @@ public class ProjectService {
                     continue;
                 }
 
-                // Không mời chính owner
                 if (invitedAccount.getId().equals(owner.getId())) {
                     System.out.println("Cannot invite owner: " + email);
                     continue;
                 }
 
-                // Kiểm tra account có role không
                 if (invitedAccount.getRole() == null) {
                     System.out.println("Account has no role: " + email);
                     continue;
                 }
 
-                // Kiểm tra user có đang tham gia project active nào không
-                boolean hasActiveProject = projectMemberRepository.hasActiveProject(invitedAccount.getId());
-                if (hasActiveProject) {
-                    System.out.println("User is already in an active project: " + email);
-                    continue;
-                }
-
-                // Kiểm tra đã mời chưa
                 boolean alreadyInvited = projectMemberRepository
                         .existsByProjectIdAndAccountId(project.getId(), invitedAccount.getId());
 
@@ -273,17 +242,14 @@ public class ProjectService {
 
                 String roleName = invitedAccount.getRole().getRoleName();
 
-                // Validate theo role
                 if ("LECTURER".equalsIgnoreCase(roleName)) {
-                    // Kiểm tra đã có giảng viên chưa
                     if (currentLecturers > 0 || lecturerCount > 0) {
-                        System.out.println("Project already has a lecturer: " + email);
+                        System.out.println("Project already has a lecturer mentor: " + email);
                         continue;
                     }
                     lecturerCount++;
 
                 } else if ("STUDENT".equalsIgnoreCase(roleName)) {
-                    // Kiểm tra số lượng sinh viên
                     if (currentStudents + studentCount >= MAX_STUDENTS_PER_PROJECT) {
                         System.out.println("Maximum students reached: " + email);
                         continue;
@@ -295,7 +261,6 @@ public class ProjectService {
                     continue;
                 }
 
-                // Tạo lời mời
                 ProjectMember member = new ProjectMember();
                 member.setProject(project);
                 member.setAccount(invitedAccount);
@@ -303,10 +268,8 @@ public class ProjectService {
                 member.setMemberRole(roleName.toUpperCase());
                 projectMemberRepository.save(member);
 
-                // ✅ TẠO TOKEN
                 String invitationToken = generateInvitationToken(member.getId());
 
-                // ✅ GỬI EMAIL
                 try {
                     mailService.sendProjectInvitation(
                             invitedAccount.getEmail(),
@@ -315,7 +278,7 @@ public class ProjectService {
                             owner.getName(),
                             roleName.toUpperCase(),
                             member.getId(),
-                            invitationToken  // ✅ DÒNG NÀY BỊ THIẾU
+                            invitationToken
                     );
                     System.out.println("✅ Successfully invited: " + email);
                 } catch (Exception emailEx) {
@@ -327,6 +290,7 @@ public class ProjectService {
             }
         }
     }
+
     private String generateInvitationToken(Integer invitationId) {
         String secretKey = "smrs-invitation-secret-key-2025";
         long timestamp = System.currentTimeMillis();
@@ -383,13 +347,11 @@ public class ProjectService {
                 .collect(Collectors.toList())
                 : new ArrayList<>();
 
-        // ✅ Lấy images
         List<String> images = (p.getImages() != null)
                 ? p.getImages().stream()
                 .map(ProjectImage::getUrl)
                 .collect(Collectors.toList())
                 : new ArrayList<>();
-
 
         Instant dueDate = (p.getDueDate() != null)
                 ? p.getDueDate().toInstant()
@@ -438,14 +400,11 @@ public class ProjectService {
 
     public ResponseDto<ProjectDetailResponse> getProjectDetail(Integer projectId) {
         try {
-            // Lấy project
             Project project = projectRepository.findById(projectId)
                     .orElseThrow(() -> new RuntimeException("Project not found"));
 
-            // Lấy tất cả members của project
             List<ProjectMember> allMembers = projectMemberRepository.findByProjectId(projectId);
 
-            // Tách lecturer và students
             Optional<ProjectMember> lecturerMember = allMembers.stream()
                     .filter(pm -> "LECTURER".equalsIgnoreCase(pm.getMemberRole()))
                     .findFirst();
@@ -454,7 +413,6 @@ public class ProjectService {
                     .filter(pm -> "STUDENT".equalsIgnoreCase(pm.getMemberRole()))
                     .collect(Collectors.toList());
 
-            // Build owner info
             ProjectDetailResponse.OwnerInfo ownerInfo = ProjectDetailResponse.OwnerInfo.builder()
                     .id(project.getOwner().getId())
                     .name(project.getOwner().getName())
@@ -463,7 +421,6 @@ public class ProjectService {
                             project.getOwner().getRole().getRoleName() : null)
                     .build();
 
-            // Build lecturer info
             ProjectDetailResponse.LecturerInfo lecturerInfo = null;
             if (lecturerMember.isPresent()) {
                 ProjectMember lm = lecturerMember.get();
@@ -476,7 +433,6 @@ public class ProjectService {
                         .build();
             }
 
-            // Build members info
             List<ProjectDetailResponse.MemberInfo> membersInfo = studentMembers.stream()
                     .map(pm -> ProjectDetailResponse.MemberInfo.builder()
                             .id(pm.getId())
@@ -485,11 +441,10 @@ public class ProjectService {
                             .email(pm.getAccount().getEmail())
                             .role(pm.getMemberRole())
                             .status(pm.getStatus())
-                            .joinedDate(null) // Có thể thêm field created_date vào ProjectMember entity
+                            .joinedDate(null)
                             .build())
                     .collect(Collectors.toList());
 
-            // Build files info
             List<ProjectDetailResponse.FileInfo> filesInfo = project.getFiles().stream()
                     .map(f -> ProjectDetailResponse.FileInfo.builder()
                             .id(f.getId())
@@ -498,7 +453,6 @@ public class ProjectService {
                             .build())
                     .collect(Collectors.toList());
 
-            // Build images info
             List<ProjectDetailResponse.ImageInfo> imagesInfo = project.getImages().stream()
                     .map(i -> ProjectDetailResponse.ImageInfo.builder()
                             .id(i.getId())
@@ -506,7 +460,6 @@ public class ProjectService {
                             .build())
                     .collect(Collectors.toList());
 
-            // Build statistics
             long approvedCount = studentMembers.stream()
                     .filter(pm -> "Approved".equals(pm.getStatus()))
                     .count();
@@ -525,7 +478,6 @@ public class ProjectService {
                             "Approved".equals(lecturerMember.get().getStatus()))
                     .build();
 
-            // Build response
             ProjectDetailResponse response = ProjectDetailResponse.builder()
                     .id(project.getId())
                     .name(project.getName())
@@ -547,10 +499,61 @@ public class ProjectService {
         } catch (Exception e) {
             return ResponseDto.fail(e.getMessage());
         }
-
     }
+    @Transactional
+    public ResponseDto<ProjectResponse> pickArchivedProject(
+            Integer projectId,
+            PickProjectRequest request,
+            Authentication authentication) {
+        try {
+            Account student = currentAccount(authentication);
 
+            if (student.getRole() == null || !"STUDENT".equalsIgnoreCase(student.getRole().getRoleName())) {
+                return ResponseDto.fail("Only students can pick archived projects");
+            }
+
+            Project project = projectRepository.findById(projectId)
+                    .orElseThrow(() -> new RuntimeException("Project not found"));
+
+            if (project.getStatus() != ProjectStatus.ARCHIVED) {
+                return ResponseDto.fail("This project is not available for picking");
+            }
+
+            project.setOwner(student);
+            project.setStatus(ProjectStatus.PENDING);
+
+            if (request.getDescription() != null) {
+                project.setDescription(request.getDescription());
+            }
+
+            if (request.getFiles() != null && !request.getFiles().isEmpty()) {
+                project.getFiles().clear();
+                for (PickProjectRequest.FileDto f : request.getFiles()) {
+                    ProjectFile file = new ProjectFile();
+                    file.setFilePath(f.getFilePath());
+                    file.setType(f.getType());
+                    file.setProject(project);
+                    project.getFiles().add(file);
+                }
+            }
+
+            if (request.getImages() != null && !request.getImages().isEmpty()) {
+                project.getImages().clear();
+                for (PickProjectRequest.ImageDto i : request.getImages()) {
+                    ProjectImage image = new ProjectImage();
+                    image.setUrl(i.getUrl());
+                    image.setProject(project);
+                    project.getImages().add(image);
+                }
+            }
+
+            projectRepository.save(project);
+
+            return ResponseDto.success(toResponse(project), "Project picked successfully");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
 }
-
-
-

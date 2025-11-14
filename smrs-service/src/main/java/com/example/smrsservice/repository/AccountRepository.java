@@ -18,4 +18,9 @@ public interface AccountRepository extends JpaRepository<Account,Integer> {
     Optional<Account> findWithRoleByEmail(String email);
     @Query("SELECT a FROM Account a WHERE LOWER(a.email) = LOWER(:email)")
     Optional<Account> findByEmail(@Param("email") String email);
+    @Query("SELECT COUNT(a) FROM Account a WHERE a.role.roleName = :roleName")
+    long countByRoleName(@Param("roleName") String roleName);
+
+
+
 }
