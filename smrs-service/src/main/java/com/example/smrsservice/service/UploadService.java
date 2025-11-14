@@ -8,7 +8,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -68,19 +70,18 @@ public class UploadService {
             }
 
             String extension = getFileExtension(originalFilename).toLowerCase();
-            if (!isAllowedFileType(extension)) {
-                throw new IllegalArgumentException(
-                        "File type not allowed. Allowed: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT"
-                );
-            }
 
-            Map<?, ?> uploadResult = cloudinary.uploader().upload(file.getBytes(),
+            String resourceType = detectResourceType(extension);
+
+            Map<?, ?> uploadResult = cloudinary.uploader().upload(
+                    file.getBytes(),
                     ObjectUtils.asMap(
-                            "resource_type", "raw",
-                            "folder", "smrs/documents",
+                            "resource_type", resourceType,
+                            "folder", "smrs/allfiles",
                             "use_filename", true,
                             "unique_filename", true
-                    ));
+                    )
+            );
 
             return FileUploadResponse.builder()
                     .url(uploadResult.get("secure_url").toString())
@@ -95,6 +96,26 @@ public class UploadService {
         }
     }
 
+    public List<FileUploadResponse> uploadMultipleFiles(List<MultipartFile> files) {
+        return files.stream()
+                .map(this::uploadFileWithDetails)
+                .collect(Collectors.toList());
+    }
+
+    private String detectResourceType(String ext) {
+        // Image
+        if (List.of("jpg", "jpeg", "png", "gif", "bmp", "tiff", "webp").contains(ext)) {
+            return "image";
+        }
+
+        // Video + audio
+        if (List.of("mp4", "mov", "avi", "mkv", "mp3", "wav", "aac").contains(ext)) {
+            return "video";
+        }
+
+        // Mặc định raw
+        return "raw";
+    }
     /**
      * ✅ Upload IMAGE với FileUploadResponse
      */
