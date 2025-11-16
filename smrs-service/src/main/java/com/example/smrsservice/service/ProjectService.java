@@ -80,7 +80,9 @@ public class ProjectService {
             String name,
             ProjectStatus status,
             Integer ownerId,
-            Integer majorId) {
+            Integer majorId,
+            Boolean isMine,
+            Authentication authentication) {
 
         Set<String> allowed = Set.of("id", "name", "type", "dueDate", "description", "createDate");
         String by = allowed.contains(sortBy) ? sortBy : "id";
@@ -93,21 +95,91 @@ public class ProjectService {
 
         Page<Project> result;
 
-        boolean hasName = StringUtils.hasText(name);
-        boolean hasStatus = (status != null);
-        boolean hasOwner = (ownerId != null);
-        boolean hasMajor = (majorId != null);
+        // ✅ NẾU isMine = true → Filter projects mà user tham gia
+        if (Boolean.TRUE.equals(isMine)) {
+            Account currentUser = currentAccount(authentication);
 
-        if (!hasName && !hasStatus && !hasOwner && !hasMajor) {
-            result = projectRepository.findAll(pageable);
-        } else {
+            // Lấy tất cả project IDs mà user tham gia (owner hoặc member)
+            Set<Integer> projectIds = getMyProjectIds(currentUser.getId());
+
+            if (projectIds.isEmpty()) {
+                return Page.empty(pageable);
+            }
+
+            // Build specification với projectIds + các filter khác
             result = projectRepository.findAll(
-                    buildSpecification(name, status, ownerId, majorId),
+                    buildMyProjectsSpecification(projectIds, name, status),
                     pageable
             );
+        } else {
+            // Logic cũ - không đổi
+            boolean hasName = StringUtils.hasText(name);
+            boolean hasStatus = (status != null);
+            boolean hasOwner = (ownerId != null);
+            boolean hasMajor = (majorId != null);
+
+            if (!hasName && !hasStatus && !hasOwner && !hasMajor) {
+                result = projectRepository.findAll(pageable);
+            } else {
+                result = projectRepository.findAll(
+                        buildSpecification(name, status, ownerId, majorId),
+                        pageable
+                );
+            }
         }
 
         return result.map(this::toResponse);
+    }
+
+    // ✅ Helper method: Lấy tất cả project IDs mà user tham gia
+    private Set<Integer> getMyProjectIds(Integer userId) {
+        Set<Integer> projectIds = new HashSet<>();
+
+        // 1. Projects mà user là OWNER
+        List<Project> ownedProjects = projectRepository.findByOwnerId(userId);
+        projectIds.addAll(ownedProjects.stream()
+                .map(Project::getId)
+                .collect(Collectors.toSet()));
+
+        // 2. Projects mà user là MEMBER hoặc MENTOR (bất kể status)
+        List<ProjectMember> memberProjects = projectMemberRepository.findByAccountId(userId);
+        projectIds.addAll(memberProjects.stream()
+                .map(pm -> pm.getProject().getId())
+                .collect(Collectors.toSet()));
+
+        return projectIds;
+    }
+
+    // ✅ Specification cho my projects
+    private Specification<Project> buildMyProjectsSpecification(
+            Set<Integer> projectIds,
+            String name,
+            ProjectStatus status) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            // Filter theo projectIds
+            predicates.add(root.get("id").in(projectIds));
+
+            // Filter theo name nếu có
+            if (StringUtils.hasText(name)) {
+                predicates.add(
+                        criteriaBuilder.like(
+                                criteriaBuilder.lower(root.get("name")),
+                                "%" + name.toLowerCase() + "%"
+                        )
+                );
+            }
+
+            // Filter theo status nếu có
+            if (status != null) {
+                predicates.add(
+                        criteriaBuilder.equal(root.get("status"), status)
+                );
+            }
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     private Specification<Project> buildSpecification(
@@ -572,95 +644,6 @@ public class ProjectService {
         }
     }
 
-    // ===================================================================
-    // ✅ FEATURE 1: Lấy danh sách project mà user tham gia
-    // ===================================================================
-    /**
-     * Lấy tất cả projects mà user là owner hoặc member
-     */
-    public Page<ProjectResponse> getMyProjects(
-            int page,
-            int size,
-            String sortBy,
-            String sortDir,
-            String name,
-            ProjectStatus status,
-            Authentication authentication) {
-
-        Account currentUser = currentAccount(authentication);
-
-        Set<String> allowed = Set.of("id", "name", "type", "dueDate", "description", "createDate");
-        String by = allowed.contains(sortBy) ? sortBy : "id";
-
-        Sort sort = "desc".equalsIgnoreCase(sortDir)
-                ? Sort.by(by).descending()
-                : Sort.by(by).ascending();
-
-        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(size, 1), sort);
-
-        // Lấy tất cả project mà user là member
-        List<ProjectMember> memberProjects = projectMemberRepository.findByAccountId(currentUser.getId());
-        Set<Integer> projectIds = memberProjects.stream()
-                .map(pm -> pm.getProject().getId())
-                .collect(Collectors.toSet());
-
-        // ✅ FIX: Gọi findByOwnerId từ ProjectRepository, KHÔNG PHẢI ProjectMemberRepository
-        List<Project> ownedProjects = projectRepository.findByOwnerId(currentUser.getId());
-        projectIds.addAll(ownedProjects.stream()
-                .map(Project::getId)
-                .collect(Collectors.toSet()));
-
-        if (projectIds.isEmpty()) {
-            return Page.empty(pageable);
-        }
-
-        // Build specification với filter projectIds
-        Specification<Project> spec = buildMyProjectsSpecification(projectIds, name, status);
-        Page<Project> result = projectRepository.findAll(spec, pageable);
-
-        return result.map(this::toResponse);
-    }
-
-    /**
-     * Helper method cho getMyProjects
-     */
-    private Specification<Project> buildMyProjectsSpecification(
-            Set<Integer> projectIds,
-            String name,
-            ProjectStatus status) {
-        return (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates = new ArrayList<>();
-
-            // Filter theo projectIds
-            predicates.add(root.get("id").in(projectIds));
-
-            // Filter theo name nếu có
-            if (StringUtils.hasText(name)) {
-                predicates.add(
-                        criteriaBuilder.like(
-                                criteriaBuilder.lower(root.get("name")),
-                                "%" + name.toLowerCase() + "%"
-                        )
-                );
-            }
-
-            // Filter theo status nếu có
-            if (status != null) {
-                predicates.add(
-                        criteriaBuilder.equal(root.get("status"), status)
-                );
-            }
-
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
-        };
-    }
-
-    // ===================================================================
-    // ✅ FEATURE 2: Import projects từ Excel
-    // ===================================================================
-    /**
-     * Import danh sách dự án từ file Excel
-     */
     @Transactional
     public ResponseDto<List<Project>> importProjectsFromExcel(MultipartFile file, Authentication authentication) {
         List<Project> projects = new ArrayList<>();
@@ -728,7 +711,7 @@ public class ProjectService {
                     }
                 }
 
-                // ✅ FIX: Gọi findByName từ MajorRepository, KHÔNG PHẢI ProjectMemberRepository
+                // Major
                 if (headerMap.containsKey("major")) {
                     String majorName = getCellValue(row.getCell(headerMap.get("major")));
                     if (!majorName.isEmpty()) {
@@ -761,9 +744,6 @@ public class ProjectService {
         }
     }
 
-    /**
-     * Helper method để đọc cell value từ Excel
-     */
     private String getCellValue(Cell cell) {
         if (cell == null) return "";
         if (cell.getCellType() == CellType.STRING) return cell.getStringCellValue().trim();
