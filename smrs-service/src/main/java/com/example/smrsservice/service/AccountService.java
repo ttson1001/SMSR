@@ -232,21 +232,52 @@ public class AccountService {
         accountRepository.deleteById(account.getId());
     }
 
-    public AccountDetailResponse updateAccount(Integer id,UpdateAccountDto request) {
-        Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Khoong tìm thấy tài khoản"));
+    /**
+     * ✅ UPDATED: Lấy id từ token thay vì path parameter
+     * Sử dụng Authentication để lấy thông tin user hiện tại
+     */
+    @Transactional
+    public  ResponseDto<AccountDetailResponse> updateAccount(UpdateAccountDto request, Authentication authentication) {
+        try {
+            // Lấy account từ token
+            Account account = currentAccount(authentication);
 
-        if (request.getName() != null && request.getPhone() != null) {
-            account.setName(request.getName());
-            account.setPhone(request.getPhone());
+            // Update các field nếu có trong request
+            if (request.getName() != null && !request.getName().isBlank()) {
+                account.setName(request.getName());
+            }
+
+            if (request.getPhone() != null && !request.getPhone().isBlank()) {
+                account.setPhone(request.getPhone());
+            }
+
+            if (request.getAvatar() != null && !request.getAvatar().isBlank()) {
+                account.setAvatar(request.getAvatar());
+            }
+
+            if (request.getAge() != null) {
+                account.setAge(request.getAge());
+            }
+
             accountRepository.save(account);
-        }
-        return AccountDetailResponse.builder()
-                .id(id)
-                .email(account.getEmail())
-                .name(account.getName())
-                .build();
 
+            AccountDetailResponse response = AccountDetailResponse.builder()
+                    .id(account.getId())
+                    .email(account.getEmail())
+                    .name(account.getName())
+                    .phone(account.getPhone())
+                    .avatar(account.getAvatar())
+                    .age(account.getAge())
+                    .status(account.getStatus() != null ? account.getStatus().name() : null)
+                    .role(account.getRole())
+                    .locked(account.getStatus() != null && account.getStatus() == AccountStatus.LOCKED)
+                    .build();
+
+            return ResponseDto.success(response, "Account updated successfully");
+
+        } catch (Exception e) {
+            return ResponseDto.fail(e.getMessage());
+        }
     }
 
     public ResponseDto<AccountDto> getMe(Authentication authentication) {
@@ -264,9 +295,6 @@ public class AccountService {
         } catch (Exception e) {
             return ResponseDto.fail(e.getMessage());
         }
-
-
-
     }
 
     private String extractEmail(Authentication authentication) {
@@ -372,6 +400,11 @@ public class AccountService {
     }
 
 
+    /**
+     * ⚠️ DEPRECATED: Sử dụng updateAccount() thay thế
+     * Method này bị duplicate với updateAccount()
+     */
+    @Deprecated
     @Transactional
     public ResponseDto<Account> updateProfile(UpdateAccountDto request) {
         try {

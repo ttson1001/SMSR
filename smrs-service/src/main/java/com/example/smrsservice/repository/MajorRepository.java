@@ -14,4 +14,6 @@ public interface MajorRepository  extends JpaRepository<Major,Long> {
 
     @Query("SELECT m FROM Major m WHERE m.isActive = true ORDER BY m.name ASC")
     List<Major> findAllActiveMajors();
+
+    Optional<Major> findByName(String name);
 }

@@ -25,6 +25,9 @@ public class ProjectResponse {
     private ProjectStatus status;
     private Instant createdAt;
 
+    private Integer majorId;
+    private String majorName;
+
 
     private List<FileInfo> files;
     private List<String> images;

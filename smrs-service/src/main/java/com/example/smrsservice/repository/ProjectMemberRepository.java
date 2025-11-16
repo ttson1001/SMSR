@@ -91,4 +91,10 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, In
             "AND pm.status = 'Approved' " +
             "AND pm.project.status NOT IN ('COMPLETED', 'CANCELLED')")
     long countActiveStudentProjects(@Param("accountId") Integer accountId);
+
+    /**
+     * ✅ FIXED: Chỉ return ProjectMember, không phải Project hay Major
+     * Lấy tất cả project members theo accountId
+     */
+    List<ProjectMember> findByAccountId(Integer accountId);
 }

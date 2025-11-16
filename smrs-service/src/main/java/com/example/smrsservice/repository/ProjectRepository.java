@@ -1,6 +1,5 @@
 package com.example.smrsservice.repository;
 
-
 import com.example.smrsservice.common.ProjectStatus;
 import com.example.smrsservice.entity.Project;
 import org.springframework.data.domain.Page;
@@ -11,10 +10,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface ProjectRepository extends JpaRepository<Project, Integer>, JpaSpecificationExecutor<Project> {
+
     Page<Project> findByNameContainingIgnoreCase(String name, Pageable pageable);
 
     Page<Project> findByDescriptionContainingIgnoreCase(String description, Pageable pageable);
@@ -67,10 +68,14 @@ public interface ProjectRepository extends JpaRepository<Project, Integer>, JpaS
 
     long countByStatus(ProjectStatus status);
 
+    /**
+     * ✅ ADDED: Đếm số projects theo ownerId
+     */
     long countByOwnerId(Integer ownerId);
 
-
-
-
+    /**
+     * ✅ ADDED: Lấy danh sách projects theo ownerId
+     * Dùng cho getMyProjects() - lấy projects mà user là owner
+     */
+    List<Project> findByOwnerId(Integer ownerId);
 }
-

@@ -14,6 +14,7 @@ public class ProjectCreateDto {
     private String description;
     private String type;
     private Date dueDate;
+    private Integer majorId;
     private List<String> invitedEmails;
 
     // ✅ THÊM 2 FIELDS NÀY

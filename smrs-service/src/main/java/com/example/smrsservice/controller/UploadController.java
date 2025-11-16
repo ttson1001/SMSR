@@ -32,7 +32,7 @@ public class UploadController {
             return ResponseDto.fail("Lỗi khi upload ảnh: " + e.getMessage());
         }
     }
-    
+
     @PostMapping( value = "/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ResponseDto<String>> uploadFile(@RequestParam("file") MultipartFile file) {
         try {
@@ -74,30 +74,6 @@ public class UploadController {
                     .body(ResponseDto.fail("Upload failed: " + e.getMessage()));
         }
     }
-
-//    /**
-//     * ✅ Upload nhiều files - Trả về FileUploadResponse (mới)
-//     */
-//    @PostMapping( value = "/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-//    public ResponseEntity<ResponseDto<List<FileUploadResponse>>> uploadMultipleFiles(
-//            @RequestParam("files") MultipartFile[] files) {
-//        try {
-//            List<FileUploadResponse> responses = new ArrayList<>();
-//
-//            for (MultipartFile file : files) {
-//                if (!file.isEmpty()) {
-//                    FileUploadResponse response = uploadService.uploadFileWithDetails(file);
-//                    responses.add(response);
-//                }
-//            }
-//
-//            return ResponseEntity.ok(ResponseDto.success(responses, "Files uploaded successfully"));
-//
-//        } catch (Exception e) {
-//            return ResponseEntity.badRequest()
-//                    .body(ResponseDto.fail("Upload failed: " + e.getMessage()));
-//        }
-//    }
 
     @PostMapping(value ="/auto", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ResponseDto<String>> uploadAuto(@RequestParam("file") MultipartFile file) {
