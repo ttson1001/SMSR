@@ -20,39 +20,45 @@ public class UploadService {
 
     public String uploadImage(MultipartFile file) {
         try {
-            Map<?, ?> uploadResult = cloudinary.uploader().upload(file.getBytes(),
+            String original = file.getOriginalFilename();
+
+            Map<?, ?> uploadResult = cloudinary.uploader().upload(
+                    file.getBytes(),
                     ObjectUtils.asMap(
                             "resource_type", "image",
-                            "folder", "smrs/images"
-                    ));
+                            "folder", "smrs/images",
+                            "public_id", original,
+                            "overwrite", true
+                    )
+            );
+
             return uploadResult.get("secure_url").toString();
+
         } catch (IOException e) {
             throw new RuntimeException("Lỗi upload hình ảnh lên Cloudinary", e);
         }
     }
 
-
     public String uploadFile(MultipartFile file) {
         try {
-            String originalFilename = file.getOriginalFilename();
-            if (originalFilename == null) {
+            String filename = file.getOriginalFilename();
+            if (filename == null)
                 throw new IllegalArgumentException("File name is required");
-            }
 
-            String extension = getFileExtension(originalFilename).toLowerCase();
-            if (!isAllowedFileType(extension)) {
-                throw new IllegalArgumentException(
-                        "File type not allowed. Allowed: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT"
-                );
-            }
+            String extension = getExtension(filename);
+            if (!isAllowedFileType(extension))
+                throw new IllegalArgumentException("File type not allowed");
 
-            Map<?, ?> uploadResult = cloudinary.uploader().upload(file.getBytes(),
+
+            Map<?, ?> uploadResult = cloudinary.uploader().upload(
+                    file.getBytes(),
                     ObjectUtils.asMap(
                             "resource_type", "raw",
                             "folder", "smrs/documents",
-                            "use_filename", true,
-                            "unique_filename", true
-                    ));
+                            "public_id", filename,
+                            "overwrite", true
+                    )
+            );
 
             return uploadResult.get("secure_url").toString();
 
@@ -61,16 +67,13 @@ public class UploadService {
         }
     }
 
-
     public FileUploadResponse uploadFileWithDetails(MultipartFile file) {
         try {
-            String originalFilename = file.getOriginalFilename();
-            if (originalFilename == null) {
+            String filename = file.getOriginalFilename();
+            if (filename == null)
                 throw new IllegalArgumentException("File name is required");
-            }
 
-            String extension = getFileExtension(originalFilename).toLowerCase();
-
+            String extension = getExtension(filename);
             String resourceType = detectResourceType(extension);
 
             Map<?, ?> uploadResult = cloudinary.uploader().upload(
@@ -78,14 +81,14 @@ public class UploadService {
                     ObjectUtils.asMap(
                             "resource_type", resourceType,
                             "folder", "smrs/allfiles",
-                            "use_filename", true,
-                            "unique_filename", true
+                            "public_id", filename,
+                            "overwrite", true
                     )
             );
 
             return FileUploadResponse.builder()
                     .url(uploadResult.get("secure_url").toString())
-                    .fileName(originalFilename)
+                    .fileName(filename)
                     .fileType(extension)
                     .fileSize(file.getSize())
                     .cloudinaryId(uploadResult.get("public_id").toString())
@@ -102,83 +105,22 @@ public class UploadService {
                 .collect(Collectors.toList());
     }
 
-    private String detectResourceType(String ext) {
-        // Image
-        if (List.of("jpg", "jpeg", "png", "gif", "bmp", "tiff", "webp").contains(ext)) {
-            return "image";
-        }
-
-        // Video + audio
-        if (List.of("mp4", "mov", "avi", "mkv", "mp3", "wav", "aac").contains(ext)) {
-            return "video";
-        }
-
-        // Mặc định raw
-        return "raw";
-    }
-    /**
-     * ✅ Upload IMAGE với FileUploadResponse
-     */
-    public FileUploadResponse uploadImageWithDetails(MultipartFile file) {
-        try {
-            Map<?, ?> uploadResult = cloudinary.uploader().upload(file.getBytes(),
-                    ObjectUtils.asMap(
-                            "resource_type", "image",
-                            "folder", "smrs/images"
-                    ));
-
-            return FileUploadResponse.builder()
-                    .url(uploadResult.get("secure_url").toString())
-                    .fileName(file.getOriginalFilename())
-                    .fileType(getFileExtension(file.getOriginalFilename()))
-                    .fileSize(file.getSize())
-                    .cloudinaryId(uploadResult.get("public_id").toString())
-                    .build();
-
-        } catch (IOException e) {
-            throw new RuntimeException("Lỗi upload hình ảnh lên Cloudinary", e);
-        }
-    }
-
-    /**
-     * Upload tự động
-     */
-    public String uploadAuto(MultipartFile file) {
-        String extension = getFileExtension(file.getOriginalFilename()).toLowerCase();
-
-        if (isImageFile(extension)) {
-            return uploadImage(file);
-        }
-
-        return uploadFile(file);
-    }
-
-    /**
-     * Xóa file
-     */
-    public void deleteFile(String publicId, String resourceType) {
-        try {
-            cloudinary.uploader().destroy(publicId,
-                    ObjectUtils.asMap("resource_type", resourceType));
-        } catch (IOException e) {
-            throw new RuntimeException("Lỗi xóa file trên Cloudinary", e);
-        }
-    }
-
-    // ==================== HELPER METHODS ====================
-
-    private String getFileExtension(String filename) {
-        if (filename == null || !filename.contains(".")) {
-            return "";
-        }
-        return filename.substring(filename.lastIndexOf(".") + 1);
-    }
-
-    private boolean isImageFile(String extension) {
-        return extension.matches("(?i)(jpg|jpeg|png|gif|bmp|webp|svg)");
+    private String getExtension(String filename) {
+        int index = filename.lastIndexOf(".");
+        return index == -1 ? "" : filename.substring(index + 1).toLowerCase();
     }
 
     private boolean isAllowedFileType(String extension) {
-        return extension.matches("(?i)(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv)");
+        return extension.matches("(?i)(pdf|csv|txt|doc|docx|xls|xlsx|ppt|pptx)");
+    }
+
+    private boolean isImage(String ext) {
+        return ext.matches("(?i)(jpg|jpeg|png|gif|bmp|webp|svg)");
+    }
+
+    private String detectResourceType(String ext) {
+        if (isImage(ext)) return "image";
+        if (List.of("mp4", "mov", "avi", "mkv", "mp3", "wav").contains(ext)) return "video";
+        return "raw";
     }
 }

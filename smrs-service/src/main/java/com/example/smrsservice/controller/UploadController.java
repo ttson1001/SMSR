@@ -14,7 +14,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -33,7 +32,7 @@ public class UploadController {
         }
     }
 
-    @PostMapping( value = "/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ResponseDto<String>> uploadFile(@RequestParam("file") MultipartFile file) {
         try {
             if (file.isEmpty()) {
@@ -68,23 +67,6 @@ public class UploadController {
             return ResponseEntity.ok(
                     ResponseDto.success(results, "Files uploaded successfully")
             );
-
-        } catch (Exception e) {
-            return ResponseEntity.badRequest()
-                    .body(ResponseDto.fail("Upload failed: " + e.getMessage()));
-        }
-    }
-
-    @PostMapping(value ="/auto", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ResponseDto<String>> uploadAuto(@RequestParam("file") MultipartFile file) {
-        try {
-            if (file.isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body(ResponseDto.fail("File is empty"));
-            }
-
-            String url = uploadService.uploadAuto(file);
-            return ResponseEntity.ok(ResponseDto.success(url, "File uploaded successfully"));
 
         } catch (Exception e) {
             return ResponseEntity.badRequest()
