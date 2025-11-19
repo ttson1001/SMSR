@@ -1,4 +1,4 @@
-package com.example.smrsservice.exception;
+package com.example.smrsservice.exeption;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -7,7 +7,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Map;
-
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
