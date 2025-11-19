@@ -1,11 +1,12 @@
 package com.example.smrsservice.config;
 
-
 import com.example.smrsservice.repository.AccountRepository;
 import com.example.smrsservice.security.JwtAuthenticationFilter;
 import com.example.smrsservice.security.JwtTokenUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -20,6 +21,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.servlet.HandlerExecutionChain;
+import org.springframework.web.servlet.handler.HandlerMappingIntrospector;
+import org.springframework.web.servlet.handler.MatchableHandlerMapping;
+
+
 
 import java.util.List;
 
@@ -31,6 +37,7 @@ public class SecurityConfig {
 
     private final JwtTokenUtil jwtTokenUtil;
     private final AccountRepository accountRepository;
+    private final HandlerMappingIntrospector introspector;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -41,7 +48,6 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
                         .requestMatchers(
                                 "/api/auth/**",
                                 "/v3/api-docs/**",
@@ -52,21 +58,37 @@ public class SecurityConfig {
                                 "/api/milestones",
                                 "/api/project-members/accept/**",
                                 "/api/project-members/reject/**",
-                                "api/projects",
+                                "/api/projects",
                                 "/api/students/*/profile"
                         ).permitAll()
-                        .anyRequest().authenticated()
-
+                        .anyRequest().permitAll()
                 )
                 .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint((req, res, e) ->
-                                res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized: Invalid or missing token"))
+                        .authenticationEntryPoint((req, res, e) -> {
+
+                            if (!routeExists(req)) {
+                                res.sendError(HttpServletResponse.SC_NOT_FOUND, "Not Found");
+                                return;
+                            }
+
+                            res.sendError(HttpServletResponse.SC_UNAUTHORIZED,
+                                    "Unauthorized: Invalid or missing token");
+                        })
                 )
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    private boolean routeExists(HttpServletRequest request) {
+        try {
+            MatchableHandlerMapping mapping = introspector.getMatchableHandlerMapping(request);
+            return mapping != null;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Bean
@@ -81,6 +103,7 @@ public class SecurityConfig {
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("Authorization", "Content-Disposition"));
         configuration.setAllowCredentials(true);
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

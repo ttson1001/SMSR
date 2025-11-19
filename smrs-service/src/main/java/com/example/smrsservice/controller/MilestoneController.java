@@ -7,6 +7,7 @@ import com.example.smrsservice.dto.milestone.MilestoneUpdateDto;
 import com.example.smrsservice.service.MilestoneService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,6 +15,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/milestones")
+@PreAuthorize("isAuthenticated()")
 @RequiredArgsConstructor
 public class MilestoneController {
 

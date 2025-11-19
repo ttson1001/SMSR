@@ -1,64 +1,54 @@
-package com.example.smrsservice.exeption;
+package com.example.smrsservice.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-import javax.security.auth.login.AccountNotFoundException;
 import java.util.Map;
 
+@RestControllerAdvice
 public class GlobalExceptionHandler {
-    @ExceptionHandler(AccountNotFoundException.class)
-    public ResponseEntity<?> handleAccountNotFound(AccountNotFoundException ex) {
+
+    // 404 - URL không tồn tại
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<?> handleNotFound(NoResourceFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(Map.of(
-                        "error", "ACCOUNT_NOT_FOUND",
-                        "message", ex.getMessage()
+                        "error", "NOT_FOUND",
+                        "message", "API không tồn tại"
                 ));
     }
 
-    // 400: dữ liệu không hợp lệ (update, change password, ...)
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<?> handleBadRequest(IllegalArgumentException ex) {
-        return ResponseEntity.badRequest()
+    // 400 - bất kỳ lỗi runtime nào trong service/controller
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<?> handleRuntime(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Map.of(
                         "error", "BAD_REQUEST",
                         "message", ex.getMessage()
                 ));
     }
 
-    // 401: chưa auth / token sai
-    @ExceptionHandler({ BadCredentialsException.class })
-    public ResponseEntity<?> handleBadCredentials(BadCredentialsException ex) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of(
-                        "error", "UNAUTHORIZED",
-                        "message", ex.getMessage()
-                ));
-    }
-
-    // ví dụ: nhập mật khẩu cũ sai khi change password
-    @ExceptionHandler(OldPasswordNotMatchException.class)
-    public ResponseEntity<?> handleOldPasswordNotMatch(OldPasswordNotMatchException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(Map.of(
-                        "error", "OLD_PASSWORD_NOT_MATCH",
-                        "message", ex.getMessage()
-                ));
-    }
-
-    // fallback: lỗi khác
+    // fallback 500
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<?> handleOther(Exception ex) {
-        // log ra để dev coi
+    public ResponseEntity<?> handleException(Exception ex) {
         ex.printStackTrace();
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of(
-                        "error", "INTERNAL_ERROR",
+                        "error", "SERVER_ERROR",
                         "message", "Lỗi hệ thống"
                 ));
     }
 
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<?> handleAccessDenied(Exception ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of(
+                        "error", "FORBIDDEN",
+                        "message", "Access Denied"
+                ));
+    }
 
 }

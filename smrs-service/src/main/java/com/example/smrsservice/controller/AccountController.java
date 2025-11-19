@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -24,12 +25,13 @@ import java.util.Map;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/accounts")
+@PreAuthorize("isAuthenticated()")
 public class AccountController {
 
     private final AccountService accountService;
 
     @PostMapping("/login")
-    @PermitAll
+    @PreAuthorize("permitAll()")
     @Operation(summary = "Login and get JWT token")
     public ResponseDto<LoginResponseDto> login(@RequestBody LoginRequest request) {
         return accountService.login(request);
@@ -42,6 +44,7 @@ public class AccountController {
     }
 
     @PatchMapping("/{id}/activate")
+
     public ResponseEntity<Void> activate(@PathVariable Integer id) throws AccountNotFoundException {
         accountService.activateAccount(id);
         return ResponseEntity.noContent().build();
