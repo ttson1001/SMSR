@@ -22,4 +22,6 @@ public interface FinalReportRepository extends JpaRepository<FinalReport,Integer
 
     @Query("SELECT fr FROM FinalReport fr WHERE fr.status = :status")
     List<FinalReport> findByStatus(@Param("status") String status);
+
+    List<FinalReport> findByProjectIdOrderByVersionDesc(Integer projectId);
 }

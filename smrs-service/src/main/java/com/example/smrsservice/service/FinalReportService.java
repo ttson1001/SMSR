@@ -5,18 +5,15 @@ import com.example.smrsservice.dto.report.FinalReportCreateDto;
 import com.example.smrsservice.dto.report.FinalReportResponseDto;
 import com.example.smrsservice.dto.report.FinalReportUpdateDto;
 import com.example.smrsservice.dto.upload.FileUploadResponse;
-import com.example.smrsservice.entity.Account;
-import com.example.smrsservice.entity.FinalReport;
-import com.example.smrsservice.entity.Project;
-import com.example.smrsservice.repository.AccountRepository;
-import com.example.smrsservice.repository.FinalReportRepository;
-import com.example.smrsservice.repository.ProjectRepository;
+import com.example.smrsservice.entity.*;
+import com.example.smrsservice.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,6 +24,8 @@ public class FinalReportService {
     private final ProjectRepository projectRepository;
     private final AccountRepository accountRepository;
     private final UploadService uploadService;
+    private final CouncilMemberRepository councilMemberRepository;
+    private final ProjectCouncilRepository projectCouncilRepository;
 
     @Transactional
     public ResponseDto<FinalReportResponseDto> submitFinalReport(FinalReportCreateDto dto, MultipartFile file, Authentication authentication) {
@@ -62,6 +61,51 @@ public class FinalReportService {
                     .fileName(uploadResponse.getFileName())
                     .fileType(uploadResponse.getFileType())
                     .fileSize(uploadResponse.getFileSize())
+                    .version(latestVersion + 1)
+                    .status("PENDING")
+                    .build();
+
+            finalReportRepository.save(report);
+
+            return ResponseDto.success(toResponseDto(report), "Final report submitted successfully");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
+
+    @Transactional
+    public ResponseDto<FinalReportResponseDto> createFinalReport(
+            FinalReportCreateDto dto,
+            Authentication authentication) {
+        try {
+            Account submitter = currentAccount(authentication);
+
+            Project project = projectRepository.findById(dto.getProjectId())
+                    .orElseThrow(() -> new RuntimeException("Project not found"));
+
+            // Check if user is owner of project
+            boolean isOwner = project.getOwner().getId().equals(submitter.getId());
+            if (!isOwner) {
+                return ResponseDto.fail("You are not authorized to submit report for this project");
+            }
+
+            // Lấy version hiện tại
+            Integer latestVersion = finalReportRepository
+                    .findTopByProjectIdOrderByVersionDesc(dto.getProjectId())
+                    .map(FinalReport::getVersion)
+                    .orElse(0);
+
+            FinalReport report = FinalReport.builder()
+                    .project(project)
+                    .submittedBy(submitter)
+                    .reportTitle(dto.getReportTitle())
+                    .description(dto.getDescription())
+                    .filePath(dto.getFilePath())      // Từ DTO
+                    .fileName(dto.getFileName())       // Từ DTO
+                    .fileType(dto.getFileType())       // Từ DTO
+                    .fileSize(dto.getFileSize())       // Từ DTO
                     .version(latestVersion + 1)
                     .status("PENDING")
                     .build();
@@ -206,4 +250,85 @@ public class FinalReportService {
         }
         throw new RuntimeException("Invalid authentication principal type");
     }
+
+    public ResponseDto<List<FinalReportResponseDto>> getReportsByProject(
+            Integer projectId,
+            Authentication authentication) {
+        try {
+            Project project = projectRepository.findById(projectId)
+                    .orElseThrow(() -> new RuntimeException("Project not found"));
+
+            List<FinalReport> reports = finalReportRepository
+                    .findByProjectIdOrderByVersionDesc(projectId);
+
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+            List<FinalReportResponseDto> dtos = reports.stream()
+                    .map(report -> FinalReportResponseDto.builder()
+                            .id(report.getId())
+                            .projectId(report.getProject().getId())
+                            .projectName(report.getProject().getName())
+                            .reportTitle(report.getReportTitle())
+                            .description(report.getDescription())
+                            .filePath(report.getFilePath())
+                            .fileName(report.getFileName())
+                            .fileType(report.getFileType())
+                            .fileSize(report.getFileSize())
+                            .version(report.getVersion())
+                            .status(report.getStatus())
+                            .submissionDate(report.getSubmissionDate() != null ?
+                                    sdf.format(report.getSubmissionDate()) : null)
+                            .submittedById(report.getSubmittedBy().getId())
+                            .submittedByName(report.getSubmittedBy().getName())
+                            .build())
+                    .collect(Collectors.toList());
+
+            return ResponseDto.success(dtos, "Found " + dtos.size() + " reports");
+
+        } catch (Exception e) {
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * Lấy report mới nhất của project
+     */
+    public ResponseDto<FinalReportResponseDto> getLatestReportByProject(
+            Integer projectId,
+            Authentication authentication) {
+        try {
+            FinalReport report = finalReportRepository
+                    .findTopByProjectIdOrderByVersionDesc(projectId)
+                    .orElseThrow(() -> new RuntimeException("No report found for this project"));
+
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+            FinalReportResponseDto dto = FinalReportResponseDto.builder()
+                    .id(report.getId())
+                    .projectId(report.getProject().getId())
+                    .projectName(report.getProject().getName())
+                    .reportTitle(report.getReportTitle())
+                    .description(report.getDescription())
+                    .filePath(report.getFilePath())
+                    .fileName(report.getFileName())
+                    .fileType(report.getFileType())
+                    .fileSize(report.getFileSize())
+                    .version(report.getVersion())
+                    .status(report.getStatus())
+                    .submissionDate(report.getSubmissionDate() != null ?
+                            sdf.format(report.getSubmissionDate()) : null)
+                    .submittedById(report.getSubmittedBy().getId())
+                    .submittedByName(report.getSubmittedBy().getName())
+                    .build();
+
+            return ResponseDto.success(dto, "Latest report found");
+
+        } catch (Exception e) {
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
+
+
+
+
 }

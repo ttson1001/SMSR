@@ -3,11 +3,9 @@ package com.example.smrsservice.service;
 import com.example.smrsservice.common.ProjectStatus;
 import com.example.smrsservice.dto.common.ResponseDto;
 import com.example.smrsservice.dto.project.*;
+import com.example.smrsservice.dto.score.ProjectScoreResponseDto;
 import com.example.smrsservice.entity.*;
-import com.example.smrsservice.repository.AccountRepository;
-import com.example.smrsservice.repository.MajorRepository;
-import com.example.smrsservice.repository.ProjectMemberRepository;
-import com.example.smrsservice.repository.ProjectRepository;
+import com.example.smrsservice.repository.*;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
@@ -25,6 +23,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -40,6 +39,13 @@ public class ProjectService {
     private final ProjectMemberRepository projectMemberRepository;
     private final MailService mailService;
     private final MajorRepository majorRepository;
+    private final ProjectScoreRepository projectScoreRepository;
+
+    // ⭐⭐⭐ THÊM 3 REPOSITORIES MỚI ⭐⭐⭐
+    private final CouncilMemberRepository councilMemberRepository;
+    private final ProjectCouncilRepository projectCouncilRepository;
+    private final FinalReportRepository finalReportRepository;
+
 
     private static final int MAX_STUDENTS_PER_PROJECT = 5;
 
@@ -95,24 +101,19 @@ public class ProjectService {
 
         Page<Project> result;
 
-        // ✅ NẾU isMine = true → Filter projects mà user tham gia
         if (Boolean.TRUE.equals(isMine)) {
             Account currentUser = currentAccount(authentication);
-
-            // Lấy tất cả project IDs mà user tham gia (owner hoặc member)
             Set<Integer> projectIds = getMyProjectIds(currentUser.getId());
 
             if (projectIds.isEmpty()) {
                 return Page.empty(pageable);
             }
 
-            // Build specification với projectIds + các filter khác
             result = projectRepository.findAll(
                     buildMyProjectsSpecification(projectIds, name, status),
                     pageable
             );
         } else {
-            // Logic cũ - không đổi
             boolean hasName = StringUtils.hasText(name);
             boolean hasStatus = (status != null);
             boolean hasOwner = (ownerId != null);
@@ -131,17 +132,14 @@ public class ProjectService {
         return result.map(this::toResponse);
     }
 
-    // ✅ Helper method: Lấy tất cả project IDs mà user tham gia
     private Set<Integer> getMyProjectIds(Integer userId) {
         Set<Integer> projectIds = new HashSet<>();
 
-        // 1. Projects mà user là OWNER
         List<Project> ownedProjects = projectRepository.findByOwnerId(userId);
         projectIds.addAll(ownedProjects.stream()
                 .map(Project::getId)
                 .collect(Collectors.toSet()));
 
-        // 2. Projects mà user là MEMBER hoặc MENTOR (bất kể status)
         List<ProjectMember> memberProjects = projectMemberRepository.findByAccountId(userId);
         projectIds.addAll(memberProjects.stream()
                 .map(pm -> pm.getProject().getId())
@@ -150,7 +148,6 @@ public class ProjectService {
         return projectIds;
     }
 
-    // ✅ Specification cho my projects
     private Specification<Project> buildMyProjectsSpecification(
             Set<Integer> projectIds,
             String name,
@@ -158,10 +155,8 @@ public class ProjectService {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // Filter theo projectIds
             predicates.add(root.get("id").in(projectIds));
 
-            // Filter theo name nếu có
             if (StringUtils.hasText(name)) {
                 predicates.add(
                         criteriaBuilder.like(
@@ -171,7 +166,6 @@ public class ProjectService {
                 );
             }
 
-            // Filter theo status nếu có
             if (status != null) {
                 predicates.add(
                         criteriaBuilder.equal(root.get("status"), status)
@@ -464,26 +458,6 @@ public class ProjectService {
                 .build();
     }
 
-    private Account currentAccount(Authentication authentication) {
-        if (authentication == null) {
-            throw new RuntimeException("User not authenticated");
-        }
-
-        Object principal = authentication.getPrincipal();
-
-        if (principal instanceof Account) {
-            return (Account) principal;
-        }
-
-        if (principal instanceof String) {
-            String email = (String) principal;
-            return accountRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("Account not found with email: " + email));
-        }
-
-        throw new RuntimeException("Invalid authentication principal type");
-    }
-
     public ResponseDto<ProjectDetailResponse> getProjectDetail(Integer projectId) {
         try {
             Project project = projectRepository.findById(projectId)
@@ -553,6 +527,9 @@ public class ProjectService {
                     .filter(pm -> "Pending".equals(pm.getStatus()))
                     .count();
 
+            Double avgScore = projectScoreRepository.getAverageScoreByProjectId(projectId);
+            Integer totalScores = projectScoreRepository.findByProjectId(projectId).size();
+
             ProjectDetailResponse.Statistics statistics = ProjectDetailResponse.Statistics.builder()
                     .totalMembers(studentMembers.size())
                     .approvedMembers((int) approvedCount)
@@ -578,9 +555,170 @@ public class ProjectService {
                     .files(filesInfo)
                     .images(imagesInfo)
                     .statistics(statistics)
+                    .averageScore(avgScore != null ? avgScore : 0.0)
+                    .totalScores(totalScores)
                     .build();
 
             return ResponseDto.success(response, "Get project detail successfully");
+
+        } catch (Exception e) {
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
+
+    public ResponseDto<List<ProjectReviewDto>> getProjectsToReview(Authentication authentication) {
+        try {
+            Account lecturer = getCurrentAccount(authentication);
+
+            if (!"LECTURER".equalsIgnoreCase(lecturer.getRole().getRoleName())) {
+                return ResponseDto.fail("Only lecturers can access this endpoint");
+            }
+
+            List<CouncilMember> councilMembers = councilMemberRepository.findByLecturerId(lecturer.getId());
+
+            if (councilMembers.isEmpty()) {
+                return ResponseDto.success(new ArrayList<>(), "You are not assigned to any council");
+            }
+
+            List<Integer> councilIds = councilMembers.stream()
+                    .map(cm -> cm.getCouncil().getId())
+                    .collect(Collectors.toList());
+
+            List<ProjectCouncil> projectCouncils = projectCouncilRepository.findAll().stream()
+                    .filter(pc -> councilIds.contains(pc.getCouncil().getId()))
+                    .collect(Collectors.toList());
+
+            if (projectCouncils.isEmpty()) {
+                return ResponseDto.success(new ArrayList<>(), "No projects assigned to your councils");
+            }
+
+            List<ProjectReviewDto> result = new ArrayList<>();
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+            for (ProjectCouncil pc : projectCouncils) {
+                Project project = pc.getProject();
+                Council council = pc.getCouncil();
+
+                Optional<FinalReport> latestReportOpt = finalReportRepository
+                        .findTopByProjectIdOrderByVersionDesc(project.getId());
+
+                if (!latestReportOpt.isPresent()) {
+                    continue;
+                }
+
+                FinalReport latestReport = latestReportOpt.get();
+
+                List<ProjectScore> myScores = projectScoreRepository
+                        .findByFinalReportId(latestReport.getId()).stream()
+                        .filter(score -> score.getLecturer().getId().equals(lecturer.getId()))
+                        .collect(Collectors.toList());
+
+                ProjectScore myScore = myScores.isEmpty() ? null : myScores.get(0);
+
+                Double avgScore = projectScoreRepository.getAverageScoreByFinalReportId(latestReport.getId());
+                List<ProjectScore> allScores = projectScoreRepository.findByFinalReportId(latestReport.getId());
+                List<CouncilMember> councilMembersList = councilMemberRepository.findByCouncilId(council.getId());
+                List<ProjectMember> projectMembers = projectMemberRepository.findByProjectId(project.getId());
+
+                long totalStudents = projectMembers.stream()
+                        .filter(pm -> "STUDENT".equalsIgnoreCase(pm.getMemberRole()))
+                        .count();
+                boolean hasLecturer = projectMembers.stream()
+                        .anyMatch(pm -> "LECTURER".equalsIgnoreCase(pm.getMemberRole())
+                                && "Approved".equals(pm.getStatus()));
+
+                ProjectReviewDto dto = ProjectReviewDto.builder()
+                        .projectId(project.getId())
+                        .projectName(project.getName())
+                        .projectDescription(project.getDescription())
+                        .projectType(project.getType())
+                        .projectStatus(project.getStatus().toString())
+                        .projectCreateDate(project.getCreateDate())
+                        .projectDueDate(project.getDueDate())
+                        .latestReportId(latestReport.getId())
+                        .reportTitle(latestReport.getReportTitle())
+                        .reportDescription(latestReport.getDescription())
+                        .reportFilePath(latestReport.getFilePath())
+                        .reportFileName(latestReport.getFileName())
+                        .reportFileType(latestReport.getFileType())
+                        .reportFileSize(latestReport.getFileSize())
+                        .reportVersion(latestReport.getVersion())
+                        .reportStatus(latestReport.getStatus())
+                        .reportSubmissionDate(latestReport.getSubmissionDate() != null ?
+                                sdf.format(latestReport.getSubmissionDate()) : null)
+                        .councilId(council.getId())
+                        .councilName(council.getCouncilName())
+                        .councilCode(council.getCouncilCode())
+                        .councilDepartment(council.getDepartment())
+                        .hasScored(myScore != null)
+                        .myScoreId(myScore != null ? myScore.getId() : null)
+                        .myFinalScore(myScore != null ? myScore.getFinalScore() : null)
+                        .currentAverage(avgScore != null ? avgScore : 0.0)
+                        .totalScores(allScores.size())
+                        .totalCouncilMembers(councilMembersList.size())
+                        .ownerId(project.getOwner().getId())
+                        .ownerName(project.getOwner().getName())
+                        .ownerEmail(project.getOwner().getEmail())
+                        .ownerRole(project.getOwner().getRole() != null ?
+                                project.getOwner().getRole().getRoleName() : null)
+                        .totalMembers(projectMembers.size())
+                        .totalStudents((int) totalStudents)
+                        .hasLecturer(hasLecturer)
+                        .build();
+
+                result.add(dto);
+            }
+
+            return ResponseDto.success(result, "Found " + result.size() + " projects to review");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
+
+    // ⭐⭐⭐ METHOD MỚI: getMyScoreForProject() - FIXED LOGIC ⭐⭐⭐
+    public ResponseDto<ProjectScoreResponseDto> getMyScoreForProject(Integer projectId, Authentication authentication) {
+        try {
+            Account lecturer = getCurrentAccount(authentication);
+
+            FinalReport report = finalReportRepository.findTopByProjectIdOrderByVersionDesc(projectId)
+                    .orElseThrow(() -> new RuntimeException("No report found for this project"));
+
+            List<ProjectScore> scores = projectScoreRepository.findByFinalReportId(report.getId()).stream()
+                    .filter(score -> score.getLecturer().getId().equals(lecturer.getId()))
+                    .collect(Collectors.toList());
+
+            if (scores.isEmpty()) {
+                return ResponseDto.fail("You have not scored this project yet");
+            }
+
+            ProjectScore myScore = scores.get(0);
+
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            ProjectScoreResponseDto dto = ProjectScoreResponseDto.builder()
+                    .id(myScore.getId())
+                    .projectId(myScore.getProject().getId())
+                    .projectName(myScore.getProject().getName())
+                    .finalReportId(myScore.getFinalReport().getId())
+                    .reportVersion(myScore.getFinalReport().getVersion())
+                    .lecturerId(myScore.getLecturer().getId())
+                    .lecturerName(myScore.getLecturer().getName())
+                    .criteria1Score(myScore.getCriteria1Score())
+                    .criteria2Score(myScore.getCriteria2Score())
+                    .criteria3Score(myScore.getCriteria3Score())
+                    .criteria4Score(myScore.getCriteria4Score())
+                    .criteria5Score(myScore.getCriteria5Score())
+                    .criteria6Score(myScore.getCriteria6Score())
+                    .bonusScore1(myScore.getBonusScore1())
+                    .bonusScore2(myScore.getBonusScore2())
+                    .totalScore(myScore.getTotalScore())
+                    .finalScore(myScore.getFinalScore())
+                    .comment(myScore.getComment())
+                    .scoreDate(myScore.getScoreDate() != null ? sdf.format(myScore.getScoreDate()) : null)
+                    .build();
+
+            return ResponseDto.success(dto, "OK");
 
         } catch (Exception e) {
             return ResponseDto.fail(e.getMessage());
@@ -654,7 +792,6 @@ public class ProjectService {
 
             Account currentUser = currentAccount(authentication);
 
-            // Đọc header row
             Map<String, Integer> headerMap = new HashMap<>();
             if (rows.hasNext()) {
                 Row headerRow = rows.next();
@@ -664,12 +801,10 @@ public class ProjectService {
                 }
             }
 
-            // Kiểm tra các cột bắt buộc
             if (!headerMap.containsKey("name")) {
                 throw new RuntimeException("Missing required column: name");
             }
 
-            // Đọc data rows
             while (rows.hasNext()) {
                 Row row = rows.next();
 
@@ -682,17 +817,14 @@ public class ProjectService {
                 project.setStatus(ProjectStatus.PENDING);
                 project.setCreateDate(new Date());
 
-                // Description
                 if (headerMap.containsKey("description")) {
                     project.setDescription(getCellValue(row.getCell(headerMap.get("description"))));
                 }
 
-                // Type
                 if (headerMap.containsKey("type")) {
                     project.setType(getCellValue(row.getCell(headerMap.get("type"))));
                 }
 
-                // Due Date
                 if (headerMap.containsKey("duedate")) {
                     Cell dueDateCell = row.getCell(headerMap.get("duedate"));
                     if (dueDateCell != null && dueDateCell.getCellType() == CellType.NUMERIC) {
@@ -711,7 +843,6 @@ public class ProjectService {
                     }
                 }
 
-                // Major
                 if (headerMap.containsKey("major")) {
                     String majorName = getCellValue(row.getCell(headerMap.get("major")));
                     if (!majorName.isEmpty()) {
@@ -720,7 +851,6 @@ public class ProjectService {
                     }
                 }
 
-                // Status
                 if (headerMap.containsKey("status")) {
                     String statusStr = getCellValue(row.getCell(headerMap.get("status"))).toUpperCase();
                     try {
@@ -750,5 +880,29 @@ public class ProjectService {
         if (cell.getCellType() == CellType.NUMERIC)
             return String.valueOf((int) cell.getNumericCellValue());
         return "";
+    }
+
+    private Account currentAccount(Authentication authentication) {
+        if (authentication == null) {
+            throw new RuntimeException("User not authenticated");
+        }
+
+        Object principal = authentication.getPrincipal();
+
+        if (principal instanceof Account) {
+            return (Account) principal;
+        }
+
+        if (principal instanceof String) {
+            String email = (String) principal;
+            return accountRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("Account not found with email: " + email));
+        }
+
+        throw new RuntimeException("Invalid authentication principal type");
+    }
+
+    private Account getCurrentAccount(Authentication authentication) {
+        return currentAccount(authentication);
     }
 }

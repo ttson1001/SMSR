@@ -22,23 +22,16 @@ public class ProjectDetailResponse {
     private Date createDate;
     private Date dueDate;
 
-    // Thông tin owner
     private OwnerInfo owner;
-
-    // Giảng viên hướng dẫn
     private LecturerInfo lecturer;
-
-    // Danh sách thành viên
     private List<MemberInfo> members;
-
-    // Danh sách files
     private List<FileInfo> files;
-
-    // Danh sách images
     private List<ImageInfo> images;
-
-    // Thống kê
     private Statistics statistics;
+
+
+    private Double averageScore;
+    private Integer totalScores;
 
     @Data
     @Builder
@@ -60,7 +53,7 @@ public class ProjectDetailResponse {
         private Integer accountId;
         private String name;
         private String email;
-        private String status; // Pending, Approved, Cancelled
+        private String status;
     }
 
     @Data
@@ -72,8 +65,8 @@ public class ProjectDetailResponse {
         private Integer accountId;
         private String name;
         private String email;
-        private String role; // STUDENT, LECTURER
-        private String status; // Pending, Approved, Cancelled
+        private String role;
+        private String status;
         private Date joinedDate;
     }
 
@@ -101,12 +94,12 @@ public class ProjectDetailResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Statistics {
-        private int totalMembers;
-        private int approvedMembers;
-        private int pendingMembers;
-        private int totalStudents;
-        private int totalFiles;
-        private int totalImages;
-        private boolean hasLecturer;
+        private Integer totalMembers;
+        private Integer approvedMembers;
+        private Integer pendingMembers;
+        private Integer totalStudents;
+        private Integer totalFiles;
+        private Integer totalImages;
+        private Boolean hasLecturer;
     }
 }

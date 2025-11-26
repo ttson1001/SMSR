@@ -85,4 +85,6 @@ public class FinalReportController {
         ResponseDto<List<FinalReportResponseDto>> result = finalReportService.getMySubmittedReports(authentication);
         return ResponseEntity.ok(result);
     }
+
+
 }
