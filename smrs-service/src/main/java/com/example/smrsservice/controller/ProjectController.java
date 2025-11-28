@@ -2,6 +2,7 @@ package com.example.smrsservice.controller;
 
 import com.example.smrsservice.common.ProjectStatus;
 import com.example.smrsservice.dto.common.ResponseDto;
+import com.example.smrsservice.dto.milestone.MilestoneResponseDto;
 import com.example.smrsservice.dto.project.*;
 import com.example.smrsservice.dto.report.FinalReportCreateDto;
 import com.example.smrsservice.dto.report.FinalReportResponseDto;
@@ -9,9 +10,9 @@ import com.example.smrsservice.dto.score.ProjectScoreCreateDto;
 import com.example.smrsservice.dto.score.ProjectScoreUpdateDto;  // ⭐ THÊM IMPORT
 import com.example.smrsservice.dto.score.ProjectScoreResponseDto;
 import com.example.smrsservice.entity.Project;
+import com.example.smrsservice.service.MilestoneFinalReportService;
 import com.example.smrsservice.service.ProjectService;
 import com.example.smrsservice.service.ProjectScoreService;
-import com.example.smrsservice.service.FinalReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -30,7 +31,7 @@ public class ProjectController {
 
     private final ProjectService projectService;
     private final ProjectScoreService projectScoreService;
-    private final FinalReportService finalReportService;
+    private final MilestoneFinalReportService milestoneFinalReportService;
 
     @GetMapping
     public ResponseEntity<Page<ProjectResponse>> getAllProjects(
@@ -145,12 +146,11 @@ public class ProjectController {
         ).body(response);
     }
 
-    // ⭐⭐⭐ FIXED: Dùng ProjectScoreUpdateDto thay vì CreateDto ⭐⭐⭐
     @PutMapping("/{projectId}/scores/{scoreId}")
     public ResponseEntity<ResponseDto<ProjectScoreResponseDto>> updateScore(
             @PathVariable Integer projectId,
             @PathVariable Integer scoreId,
-            @RequestBody ProjectScoreUpdateDto dto,  // ✅ FIXED
+            @RequestBody ProjectScoreUpdateDto dto,
             Authentication authentication
     ) {
         ResponseDto<ProjectScoreResponseDto> response = projectScoreService.updateScore(
@@ -197,43 +197,16 @@ public class ProjectController {
         ).body(response);
     }
 
-    @PostMapping("/{projectId}/final-reports")
-    public ResponseEntity<ResponseDto<FinalReportResponseDto>> submitFinalReport(
-            @PathVariable Integer projectId,
-            @RequestBody FinalReportCreateDto dto,
-            Authentication authentication
-    ) {
-        ResponseDto<FinalReportResponseDto> response = finalReportService.createFinalReport(
-                dto, authentication
-        );
-        return ResponseEntity.status(
-                response.isSuccess() ? HttpStatus.CREATED : HttpStatus.BAD_REQUEST
-        ).body(response);
-    }
-
     @GetMapping("/{projectId}/final-reports")
-    public ResponseEntity<ResponseDto<List<FinalReportResponseDto>>> getFinalReports(
+    public ResponseEntity<ResponseDto<MilestoneResponseDto>> getFinalReports(
             @PathVariable Integer projectId,
             Authentication authentication
     ) {
-        ResponseDto<List<FinalReportResponseDto>> response = finalReportService.getReportsByProject(
-                projectId, authentication
+        ResponseDto<MilestoneResponseDto> response = milestoneFinalReportService.getFinalReportByProject(
+                projectId
         );
         return ResponseEntity.status(
                 response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST
-        ).body(response);
-    }
-
-    @GetMapping("/{projectId}/final-reports/latest")
-    public ResponseEntity<ResponseDto<FinalReportResponseDto>> getLatestReport(
-            @PathVariable Integer projectId,
-            Authentication authentication
-    ) {
-        ResponseDto<FinalReportResponseDto> response = finalReportService.getLatestReportByProject(
-                projectId, authentication
-        );
-        return ResponseEntity.status(
-                response.isSuccess() ? HttpStatus.OK : HttpStatus.NOT_FOUND
         ).body(response);
     }
 }

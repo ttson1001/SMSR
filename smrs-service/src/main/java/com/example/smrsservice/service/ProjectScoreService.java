@@ -5,11 +5,11 @@ import com.example.smrsservice.dto.score.ProjectScoreCreateDto;
 import com.example.smrsservice.dto.score.ProjectScoreResponseDto;
 import com.example.smrsservice.dto.score.ProjectScoreUpdateDto;
 import com.example.smrsservice.entity.Account;
-import com.example.smrsservice.entity.FinalReport;
+import com.example.smrsservice.entity.Milestone;
 import com.example.smrsservice.entity.Project;
 import com.example.smrsservice.entity.ProjectScore;
 import com.example.smrsservice.repository.AccountRepository;
-import com.example.smrsservice.repository.FinalReportRepository;
+import com.example.smrsservice.repository.MilestoneRepository;
 import com.example.smrsservice.repository.ProjectRepository;
 import com.example.smrsservice.repository.ProjectScoreRepository;
 import lombok.RequiredArgsConstructor;
@@ -29,38 +29,53 @@ public class ProjectScoreService {
     private final ProjectScoreRepository projectScoreRepository;
     private final ProjectRepository projectRepository;
     private final AccountRepository accountRepository;
-    private final FinalReportRepository finalReportRepository;
+    private final MilestoneRepository milestoneRepository;
 
     @Transactional
-    public ResponseDto<ProjectScoreResponseDto> createScore(ProjectScoreCreateDto dto, Authentication authentication) {
+    public ResponseDto<ProjectScoreResponseDto> createScore(
+            ProjectScoreCreateDto dto,
+            Authentication authentication) {
+
         try {
             Account lecturer = currentAccount(authentication);
 
+            // Chỉ giảng viên được chấm điểm
             if (!"LECTURER".equalsIgnoreCase(lecturer.getRole().getRoleName())) {
                 return ResponseDto.fail("Only lecturers can score projects");
             }
 
+            // Lấy project
             Project project = projectRepository.findById(dto.getProjectId())
                     .orElseThrow(() -> new RuntimeException("Project not found"));
 
-            FinalReport finalReport = finalReportRepository.findById(dto.getFinalReportId())
-                    .orElseThrow(() -> new RuntimeException("Final report not found"));
+            // Lấy milestone final
+            Milestone milestone = milestoneRepository.findById(dto.getFinalReportId())
+                    .orElseThrow(() -> new RuntimeException("Milestone not found"));
 
-            if (!finalReport.getProject().getId().equals(dto.getProjectId())) {
-                return ResponseDto.fail("Report does not belong to this project");
+            // Kiểm tra milestone là final
+            if (!Boolean.TRUE.equals(milestone.getIsFinal())) {
+                return ResponseDto.fail("This milestone is not final and cannot be scored");
             }
 
-            if (projectScoreRepository.existsByFinalReportIdAndLecturerId(dto.getFinalReportId(), lecturer.getId())) {
-                return ResponseDto.fail("You have already scored this report");
+            // Kiểm tra milestone thuộc project
+            if (!milestone.getProject().getId().equals(dto.getProjectId())) {
+                return ResponseDto.fail("This final milestone does not belong to the given project");
             }
 
+            // Kiểm tra lecturer đã chấm milestone final này chưa
+            if (projectScoreRepository.existsByFinalMilestoneIdAndLecturerId(dto.getFinalReportId(), lecturer.getId())) {
+                return ResponseDto.fail("You have already scored this final milestone");
+            }
+
+            // Validate thang điểm
             if (!validateScores(dto)) {
                 return ResponseDto.fail("Invalid scores. Please check maximum points for each criteria");
             }
 
+            // Tạo điểm
             ProjectScore score = ProjectScore.builder()
                     .project(project)
-                    .finalReport(finalReport)
+                    .finalMilestone(milestone)  // Đổi từ finalReport → finalMilestone
                     .lecturer(lecturer)
                     .criteria1Score(dto.getCriteria1Score())
                     .criteria2Score(dto.getCriteria2Score())
@@ -82,6 +97,7 @@ public class ProjectScoreService {
             return ResponseDto.fail(e.getMessage());
         }
     }
+
 
     @Transactional
     public ResponseDto<ProjectScoreResponseDto> updateScore(Integer scoreId, ProjectScoreUpdateDto dto, Authentication authentication) {
@@ -128,7 +144,7 @@ public class ProjectScoreService {
 
     public ResponseDto<List<ProjectScoreResponseDto>> getScoresByFinalReport(Integer finalReportId) {
         try {
-            List<ProjectScore> scores = projectScoreRepository.findByFinalReportId(finalReportId);
+            List<ProjectScore> scores = projectScoreRepository.findByFinalMilestoneId(finalReportId);
             List<ProjectScoreResponseDto> result = scores.stream()
                     .map(this::toResponseDto)
                     .collect(Collectors.toList());
@@ -157,7 +173,7 @@ public class ProjectScoreService {
     public ResponseDto<Map<String, Object>> getReportAverageScore(Integer finalReportId) {
         try {
             Double avgScore = projectScoreRepository.getAverageScoreByFinalReportId(finalReportId);
-            List<ProjectScore> scores = projectScoreRepository.findByFinalReportId(finalReportId);
+            List<ProjectScore> scores = projectScoreRepository.findByFinalMilestoneId(finalReportId);
 
             Map<String, Object> result = new HashMap<>();
             result.put("averageScore", avgScore != null ? avgScore : 0.0);
@@ -265,8 +281,7 @@ public class ProjectScoreService {
                 .id(score.getId())
                 .projectId(score.getProject().getId())
                 .projectName(score.getProject().getName())
-                .finalReportId(score.getFinalReport().getId())
-                .reportVersion(score.getFinalReport().getVersion())
+                .finalMilestoneId(score.getFinalMilestone().getId())
                 .lecturerId(score.getLecturer().getId())
                 .lecturerName(score.getLecturer().getName())
                 .criteria1Score(score.getCriteria1Score())
@@ -302,11 +317,11 @@ public class ProjectScoreService {
             Integer projectId,
             Authentication authentication) {
         try {
-            FinalReport report = finalReportRepository
-                    .findTopByProjectIdOrderByVersionDesc(projectId)
-                    .orElseThrow(() -> new RuntimeException("No report found"));
+            Milestone finalMilestone = milestoneRepository
+                    .findByProjectIdAndIsFinal(projectId, true)
+                    .orElseThrow(() -> new RuntimeException("Final milestone not found for this project"));
 
-            List<ProjectScore> scores = projectScoreRepository.findByFinalReportId(report.getId());
+            List<ProjectScore> scores = projectScoreRepository.findByFinalMilestoneId(finalMilestone.getId());
 
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
@@ -315,8 +330,7 @@ public class ProjectScoreService {
                             .id(score.getId())
                             .projectId(score.getProject().getId())
                             .projectName(score.getProject().getName())
-                            .finalReportId(score.getFinalReport().getId())
-                            .reportVersion(score.getFinalReport().getVersion())
+                            .finalMilestoneId(score.getFinalMilestone().getId())
                             .lecturerId(score.getLecturer().getId())
                             .lecturerName(score.getLecturer().getName())
                             .criteria1Score(score.getCriteria1Score())

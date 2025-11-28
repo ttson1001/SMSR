@@ -12,6 +12,7 @@ import java.util.Date;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ProjectReviewDto {
+
     // ==================== PROJECT INFO ====================
     private Integer projectId;
     private String projectName;
@@ -21,17 +22,13 @@ public class ProjectReviewDto {
     private Date projectCreateDate;
     private Date projectDueDate;
 
-    // ==================== FINAL REPORT INFO ====================
-    private Integer latestReportId;
-    private String reportTitle;
-    private String reportDescription;
-    private String reportFilePath;
-    private String reportFileName;
-    private String reportFileType;
-    private Long reportFileSize;
-    private Integer reportVersion;
-    private String reportStatus;
-    private String reportSubmissionDate;
+    // ==================== FINAL MILESTONE INFO ====================
+    private Integer finalMilestoneId;         // ID milestone final
+    private String reportTitle;               // (Milestone không có title → đặt mặc định)
+    private String reportDescription;         // reportComment
+    private String reportFilePath;            // reportUrl
+    private String reportSubmissionDate;      // reportSubmittedAt
+    private String reportSubmittedBy;         // Người nộp report
 
     // ==================== COUNCIL INFO ====================
     private Integer councilId;

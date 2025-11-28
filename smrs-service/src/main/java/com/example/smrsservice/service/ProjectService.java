@@ -41,10 +41,9 @@ public class ProjectService {
     private final MajorRepository majorRepository;
     private final ProjectScoreRepository projectScoreRepository;
 
-    // ⭐⭐⭐ THÊM 3 REPOSITORIES MỚI ⭐⭐⭐
     private final CouncilMemberRepository councilMemberRepository;
     private final ProjectCouncilRepository projectCouncilRepository;
-    private final FinalReportRepository finalReportRepository;
+    private final MilestoneRepository milestoneRepository;
 
 
     private static final int MAX_STUDENTS_PER_PROJECT = 5;
@@ -599,30 +598,38 @@ public class ProjectService {
                 Project project = pc.getProject();
                 Council council = pc.getCouncil();
 
-                Optional<FinalReport> latestReportOpt = finalReportRepository
-                        .findTopByProjectIdOrderByVersionDesc(project.getId());
+                Optional<Milestone> finalMilestoneOpt =
+                        milestoneRepository.findByProjectIdAndIsFinal(project.getId(), true);
 
-                if (!latestReportOpt.isPresent()) {
+                if (!finalMilestoneOpt.isPresent()) {
                     continue;
                 }
 
-                FinalReport latestReport = latestReportOpt.get();
+                Milestone finalMilestone = finalMilestoneOpt.get();
 
                 List<ProjectScore> myScores = projectScoreRepository
-                        .findByFinalReportId(latestReport.getId()).stream()
+                        .findByFinalMilestoneId(finalMilestone.getId()).stream()
                         .filter(score -> score.getLecturer().getId().equals(lecturer.getId()))
                         .collect(Collectors.toList());
 
                 ProjectScore myScore = myScores.isEmpty() ? null : myScores.get(0);
 
-                Double avgScore = projectScoreRepository.getAverageScoreByFinalReportId(latestReport.getId());
-                List<ProjectScore> allScores = projectScoreRepository.findByFinalReportId(latestReport.getId());
-                List<CouncilMember> councilMembersList = councilMemberRepository.findByCouncilId(council.getId());
-                List<ProjectMember> projectMembers = projectMemberRepository.findByProjectId(project.getId());
+                Double avgScore =
+                        projectScoreRepository.getAverageScoreByFinalReportId(finalMilestone.getId());
+
+                List<ProjectScore> allScores =
+                        projectScoreRepository.findByFinalMilestoneId(finalMilestone.getId());
+
+                List<CouncilMember> councilMembersList =
+                        councilMemberRepository.findByCouncilId(council.getId());
+
+                List<ProjectMember> projectMembers =
+                        projectMemberRepository.findByProjectId(project.getId());
 
                 long totalStudents = projectMembers.stream()
                         .filter(pm -> "STUDENT".equalsIgnoreCase(pm.getMemberRole()))
                         .count();
+
                 boolean hasLecturer = projectMembers.stream()
                         .anyMatch(pm -> "LECTURER".equalsIgnoreCase(pm.getMemberRole())
                                 && "Approved".equals(pm.getStatus()));
@@ -635,35 +642,41 @@ public class ProjectService {
                         .projectStatus(project.getStatus().toString())
                         .projectCreateDate(project.getCreateDate())
                         .projectDueDate(project.getDueDate())
-                        .latestReportId(latestReport.getId())
-                        .reportTitle(latestReport.getReportTitle())
-                        .reportDescription(latestReport.getDescription())
-                        .reportFilePath(latestReport.getFilePath())
-                        .reportFileName(latestReport.getFileName())
-                        .reportFileType(latestReport.getFileType())
-                        .reportFileSize(latestReport.getFileSize())
-                        .reportVersion(latestReport.getVersion())
-                        .reportStatus(latestReport.getStatus())
-                        .reportSubmissionDate(latestReport.getSubmissionDate() != null ?
-                                sdf.format(latestReport.getSubmissionDate()) : null)
+
+                        .finalMilestoneId(finalMilestone.getId())
+                        .reportTitle("Final Milestone Report")
+                        .reportDescription(finalMilestone.getReportComment())
+                        .reportFilePath(finalMilestone.getReportUrl())
+                        .reportSubmissionDate(finalMilestone.getReportSubmittedAt() != null
+                                ? sdf.format(finalMilestone.getReportSubmittedAt())
+                                : null)
+                        .reportSubmittedBy(finalMilestone.getReportSubmittedBy() != null
+                                ? finalMilestone.getReportSubmittedBy().getName()
+                                : null)
+
                         .councilId(council.getId())
                         .councilName(council.getCouncilName())
                         .councilCode(council.getCouncilCode())
                         .councilDepartment(council.getDepartment())
+
                         .hasScored(myScore != null)
                         .myScoreId(myScore != null ? myScore.getId() : null)
                         .myFinalScore(myScore != null ? myScore.getFinalScore() : null)
                         .currentAverage(avgScore != null ? avgScore : 0.0)
                         .totalScores(allScores.size())
                         .totalCouncilMembers(councilMembersList.size())
+
                         .ownerId(project.getOwner().getId())
                         .ownerName(project.getOwner().getName())
                         .ownerEmail(project.getOwner().getEmail())
-                        .ownerRole(project.getOwner().getRole() != null ?
-                                project.getOwner().getRole().getRoleName() : null)
+                        .ownerRole(project.getOwner().getRole() != null
+                                ? project.getOwner().getRole().getRoleName()
+                                : null)
+
                         .totalMembers(projectMembers.size())
                         .totalStudents((int) totalStudents)
                         .hasLecturer(hasLecturer)
+
                         .build();
 
                 result.add(dto);
@@ -677,15 +690,19 @@ public class ProjectService {
         }
     }
 
-    // ⭐⭐⭐ METHOD MỚI: getMyScoreForProject() - FIXED LOGIC ⭐⭐⭐
-    public ResponseDto<ProjectScoreResponseDto> getMyScoreForProject(Integer projectId, Authentication authentication) {
+    public ResponseDto<ProjectScoreResponseDto> getMyScoreForProject(
+            Integer projectId, Authentication authentication) {
         try {
             Account lecturer = getCurrentAccount(authentication);
 
-            FinalReport report = finalReportRepository.findTopByProjectIdOrderByVersionDesc(projectId)
-                    .orElseThrow(() -> new RuntimeException("No report found for this project"));
+            // Lấy final milestone của project
+            Milestone finalMilestone = milestoneRepository
+                    .findByProjectIdAndIsFinal(projectId, true)
+                    .orElseThrow(() -> new RuntimeException("Final milestone not found for this project"));
 
-            List<ProjectScore> scores = projectScoreRepository.findByFinalReportId(report.getId()).stream()
+            // Lấy điểm mà giảng viên này đã chấm cho final milestone đó
+            List<ProjectScore> scores = projectScoreRepository
+                    .findByFinalMilestoneId(finalMilestone.getId()).stream()
                     .filter(score -> score.getLecturer().getId().equals(lecturer.getId()))
                     .collect(Collectors.toList());
 
@@ -696,14 +713,24 @@ public class ProjectService {
             ProjectScore myScore = scores.get(0);
 
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
             ProjectScoreResponseDto dto = ProjectScoreResponseDto.builder()
                     .id(myScore.getId())
                     .projectId(myScore.getProject().getId())
                     .projectName(myScore.getProject().getName())
-                    .finalReportId(myScore.getFinalReport().getId())
-                    .reportVersion(myScore.getFinalReport().getVersion())
+
+                    // final milestone
+                    .finalMilestoneId(finalMilestone.getId())
+                    .reportFilePath(finalMilestone.getReportUrl())
+                    .reportSubmissionDate(finalMilestone.getReportSubmittedAt() != null
+                            ? sdf.format(finalMilestone.getReportSubmittedAt())
+                            : null)
+
+                    // lecturer
                     .lecturerId(myScore.getLecturer().getId())
                     .lecturerName(myScore.getLecturer().getName())
+
+                    // scores
                     .criteria1Score(myScore.getCriteria1Score())
                     .criteria2Score(myScore.getCriteria2Score())
                     .criteria3Score(myScore.getCriteria3Score())
@@ -712,10 +739,14 @@ public class ProjectService {
                     .criteria6Score(myScore.getCriteria6Score())
                     .bonusScore1(myScore.getBonusScore1())
                     .bonusScore2(myScore.getBonusScore2())
+
                     .totalScore(myScore.getTotalScore())
                     .finalScore(myScore.getFinalScore())
                     .comment(myScore.getComment())
-                    .scoreDate(myScore.getScoreDate() != null ? sdf.format(myScore.getScoreDate()) : null)
+
+                    .scoreDate(myScore.getScoreDate() != null
+                            ? sdf.format(myScore.getScoreDate())
+                            : null)
                     .build();
 
             return ResponseDto.success(dto, "OK");
@@ -724,6 +755,7 @@ public class ProjectService {
             return ResponseDto.fail(e.getMessage());
         }
     }
+
 
     @Transactional
     public ResponseDto<ProjectResponse> pickArchivedProject(

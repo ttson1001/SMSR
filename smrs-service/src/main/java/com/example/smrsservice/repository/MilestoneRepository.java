@@ -15,4 +15,12 @@ public interface MilestoneRepository extends JpaRepository<Milestone, Integer> {
     boolean existsByProjectIdAndIsFinalTrue(Integer projectId);
 
     Optional<Milestone> findByProjectIdAndIsFinalTrue(Integer projectId);
+
+    Optional<Milestone> findByProjectIdAndIsFinal(Integer projectId, Boolean isFinal);
+
+    List<Milestone> findByIsFinalAndStatus(Boolean isFinal, String status);
+
+    List<Milestone> findByIsFinal(Boolean isFinal);
+
+    List<Milestone> findByReportSubmittedById(Integer submitterId);
 }

@@ -22,8 +22,8 @@ public class ProjectScore {
     private Project project;
 
     @ManyToOne
-    @JoinColumn(name = "final_report_id", nullable = false)
-    private FinalReport finalReport;
+    @JoinColumn(name = "final_milestone_id")
+    private Milestone finalMilestone;
 
     @ManyToOne
     @JoinColumn(name = "lecturer_id", nullable = false)

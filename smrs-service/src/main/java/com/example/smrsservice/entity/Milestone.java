@@ -40,11 +40,6 @@ public class Milestone {
     @JoinColumn(name = "project_id")
     private Project project;
 
-    @OneToOne
-    @JoinColumn(name = "final_report_id")
-    private FinalReport finalReport;  // Chỉ có giá trị khi isFinal = true
-
-
     @Column(name = "is_final")
     private Boolean isFinal = false;  // Đánh dấu milestone cuối cùng
 
