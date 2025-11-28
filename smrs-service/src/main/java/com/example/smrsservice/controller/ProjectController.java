@@ -4,8 +4,6 @@ import com.example.smrsservice.common.ProjectStatus;
 import com.example.smrsservice.dto.common.ResponseDto;
 import com.example.smrsservice.dto.milestone.MilestoneResponseDto;
 import com.example.smrsservice.dto.project.*;
-import com.example.smrsservice.dto.report.FinalReportCreateDto;
-import com.example.smrsservice.dto.report.FinalReportResponseDto;
 import com.example.smrsservice.dto.score.ProjectScoreCreateDto;
 import com.example.smrsservice.dto.score.ProjectScoreUpdateDto;  // ⭐ THÊM IMPORT
 import com.example.smrsservice.dto.score.ProjectScoreResponseDto;
