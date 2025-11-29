@@ -445,4 +445,29 @@ public class CouncilService {
 
         throw new RuntimeException("Invalid authentication principal");
     }
+
+    public ResponseDto<List<CouncilResponse>> getMyJoinedCouncils(Authentication authentication) {
+        try {
+            Account currentUser = getCurrentAccount(authentication);
+
+            if (!"LECTURER".equalsIgnoreCase(currentUser.getRole().getRoleName())) {
+                return ResponseDto.fail("Only lecturers can access this endpoint");
+            }
+
+            // Tìm các council mà lecturer này là member
+            List<CouncilMember> myMemberships = councilMemberRepository
+                    .findByLecturerId(currentUser.getId());
+
+            List<CouncilResponse> responses = myMemberships.stream()
+                    .map(cm -> buildCouncilResponse(cm.getCouncil()))
+                    .collect(Collectors.toList());
+
+            return ResponseDto.success(responses,
+                    "Found " + responses.size() + " council(s)");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
 }

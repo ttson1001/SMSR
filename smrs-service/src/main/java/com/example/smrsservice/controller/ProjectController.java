@@ -16,6 +16,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -206,5 +207,18 @@ public class ProjectController {
         return ResponseEntity.status(
                 response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST
         ).body(response);
+    }
+
+    /**
+     * API cho user xem final report của các project mà họ tham gia
+     * Áp dụng cho cả STUDENT và LECTURER
+     *
+     * @param authentication - thông tin user hiện tại
+     * @return danh sách projects có final report
+     */
+    @GetMapping("/my-final-reports")
+    public ResponseEntity<ResponseDto<List<MyProjectReviewDto>>> getMyProjectsWithFinalReport(
+            Authentication authentication) {
+        return ResponseEntity.ok(projectService.getMyProjectsWithFinalReport(authentication));
     }
 }

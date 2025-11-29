@@ -106,4 +106,10 @@ public class CouncilController {
     public static class AssignProjectRequest {
         private Integer councilId;
     }
+
+    @GetMapping("/my-joined-councils")
+    public ResponseEntity<ResponseDto<List<CouncilResponse>>> getMyJoinedCouncils(
+            Authentication authentication) {
+        return ResponseEntity.ok(councilService.getMyJoinedCouncils(authentication));
+    }
 }

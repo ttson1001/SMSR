@@ -937,4 +937,256 @@ public class ProjectService {
     private Account getCurrentAccount(Authentication authentication) {
         return currentAccount(authentication);
     }
+
+
+    /**
+     * API cho user (cả student và lecturer) xem final report của các project mà họ tham gia
+     * Bao gồm cả owner và member
+     */
+    public ResponseDto<List<MyProjectReviewDto>> getMyProjectsWithFinalReport(Authentication authentication) {
+        try {
+            Account currentUser = getCurrentAccount(authentication);
+
+            // Lấy tất cả projects mà user này là owner hoặc là member
+            Set<Integer> projectIds = getMyProjectIds(currentUser.getId());
+
+            if (projectIds.isEmpty()) {
+                return ResponseDto.success(new ArrayList<>(), "You are not a member of any project");
+            }
+
+            List<Project> myProjects = projectRepository.findAllById(projectIds);
+
+            List<MyProjectReviewDto> result = new ArrayList<>();
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+            for (Project project : myProjects) {
+                // ========== Chỉ lấy những project có final milestone ==========
+                Optional<Milestone> finalMilestoneOpt =
+                        milestoneRepository.findByProjectIdAndIsFinal(project.getId(), true);
+
+                if (!finalMilestoneOpt.isPresent()) {
+                    continue; // Skip nếu chưa có final milestone
+                }
+
+                Milestone finalMilestone = finalMilestoneOpt.get();
+
+                // ========== Lấy thông tin council nếu có ==========
+                Optional<ProjectCouncil> projectCouncilOpt = projectCouncilRepository
+                        .findAll().stream()
+                        .filter(pc -> pc.getProject().getId().equals(project.getId()))
+                        .findFirst();
+
+                Council council = projectCouncilOpt.isPresent()
+                        ? projectCouncilOpt.get().getCouncil()
+                        : null;
+
+                // ========== Lấy điểm trung bình và tổng số điểm ==========
+                Double avgScore = projectScoreRepository
+                        .getAverageScoreByFinalReportId(finalMilestone.getId());
+
+                List<ProjectScore> allScores = projectScoreRepository
+                        .findByFinalMilestoneId(finalMilestone.getId());
+
+                // ========== Lấy thông tin members ==========
+                List<ProjectMember> projectMembers = projectMemberRepository
+                        .findByProjectId(project.getId());
+
+                // Lấy thông tin lecturer mentor
+                Optional<ProjectMember> lecturerMember = projectMembers.stream()
+                        .filter(pm -> "LECTURER".equalsIgnoreCase(pm.getMemberRole()))
+                        .findFirst();
+
+                List<ProjectMember> studentMembers = projectMembers.stream()
+                        .filter(pm -> "STUDENT".equalsIgnoreCase(pm.getMemberRole()))
+                        .collect(Collectors.toList());
+
+                long approvedStudents = studentMembers.stream()
+                        .filter(pm -> "Approved".equals(pm.getStatus()))
+                        .count();
+
+                long pendingStudents = studentMembers.stream()
+                        .filter(pm -> "Pending".equals(pm.getStatus()))
+                        .count();
+
+                // ========== Xác định role của user hiện tại trong project ==========
+                String myRoleInProject = "MEMBER";
+                Integer myMemberId = null;
+
+                if (project.getOwner().getId().equals(currentUser.getId())) {
+                    myRoleInProject = "OWNER";
+                } else {
+                    // Tìm trong danh sách members
+                    Optional<ProjectMember> myMember = projectMembers.stream()
+                            .filter(pm -> pm.getAccount().getId().equals(currentUser.getId()))
+                            .findFirst();
+                    if (myMember.isPresent()) {
+                        myMemberId = myMember.get().getId();
+                    }
+                }
+
+                // ========== Lấy danh sách giảng viên đã chấm điểm ==========
+                List<MyProjectReviewDto.LecturerScoreInfo> lecturerScores = new ArrayList<>();
+                for (ProjectScore score : allScores) {
+                    MyProjectReviewDto.LecturerScoreInfo scoreInfo =
+                            MyProjectReviewDto.LecturerScoreInfo.builder()
+                                    .scoreId(score.getId())
+                                    .lecturerId(score.getLecturer().getId())
+                                    .lecturerName(score.getLecturer().getName())
+                                    .lecturerEmail(score.getLecturer().getEmail())
+
+                                    .criteria1Score(score.getCriteria1Score())
+                                    .criteria2Score(score.getCriteria2Score())
+                                    .criteria3Score(score.getCriteria3Score())
+                                    .criteria4Score(score.getCriteria4Score())
+                                    .criteria5Score(score.getCriteria5Score())
+                                    .criteria6Score(score.getCriteria6Score())
+                                    .bonusScore1(score.getBonusScore1())
+                                    .bonusScore2(score.getBonusScore2())
+
+                                    .totalScore(score.getTotalScore())
+                                    .finalScore(score.getFinalScore())
+                                    .comment(score.getComment())
+                                    .scoreDate(score.getScoreDate() != null
+                                            ? sdf.format(score.getScoreDate())
+                                            : null)
+                                    .build();
+                    lecturerScores.add(scoreInfo);
+                }
+
+                // ========== Lấy danh sách council members nếu có ==========
+                List<MyProjectReviewDto.CouncilMemberInfo> councilMembersList = new ArrayList<>();
+                if (council != null) {
+                    List<CouncilMember> councilMembers = councilMemberRepository
+                            .findByCouncilId(council.getId());
+
+                    for (CouncilMember cm : councilMembers) {
+                        // Check xem giảng viên này đã chấm chưa
+                        boolean hasScored = allScores.stream()
+                                .anyMatch(score -> score.getLecturer().getId().equals(cm.getLecturer().getId()));
+
+                        MyProjectReviewDto.CouncilMemberInfo memberInfo =
+                                MyProjectReviewDto.CouncilMemberInfo.builder()
+                                        .councilMemberId(cm.getId())
+                                        .lecturerId(cm.getLecturer().getId())
+                                        .lecturerName(cm.getLecturer().getName())
+                                        .lecturerEmail(cm.getLecturer().getEmail())
+                                        .role(cm.getRole())
+                                        .hasScored(hasScored)
+                                        .build();
+                        councilMembersList.add(memberInfo);
+                    }
+                }
+
+                // ========== Lấy danh sách members trong project ==========
+                List<MyProjectReviewDto.MemberInfo> membersList = new ArrayList<>();
+                for (ProjectMember pm : projectMembers) {
+                    MyProjectReviewDto.MemberInfo memberInfo =
+                            MyProjectReviewDto.MemberInfo.builder()
+                                    .projectMemberId(pm.getId())
+                                    .accountId(pm.getAccount().getId())
+                                    .name(pm.getAccount().getName())
+                                    .email(pm.getAccount().getEmail())
+                                    .role(pm.getMemberRole())
+                                    .status(pm.getStatus())
+                                    .build();
+                    membersList.add(memberInfo);
+                }
+
+                // ========== Build DTO ==========
+                MyProjectReviewDto dto = MyProjectReviewDto.builder()
+                        // Project basic info
+                        .projectId(project.getId())
+                        .projectName(project.getName())
+                        .projectDescription(project.getDescription())
+                        .projectType(project.getType())
+                        .projectStatus(project.getStatus().toString())
+                        .projectCreateDate(project.getCreateDate())
+                        .projectDueDate(project.getDueDate())
+
+                        // Owner info
+                        .ownerId(project.getOwner().getId())
+                        .ownerName(project.getOwner().getName())
+                        .ownerEmail(project.getOwner().getEmail())
+                        .ownerRole(project.getOwner().getRole() != null
+                                ? project.getOwner().getRole().getRoleName()
+                                : null)
+
+                        // My role in this project
+                        .myRoleInProject(myRoleInProject)
+                        .myMemberId(myMemberId)
+
+                        // Final milestone info
+                        .finalMilestoneId(finalMilestone.getId())
+                        .reportTitle("Final Milestone Report")
+                        .reportDescription(finalMilestone.getReportComment())
+                        .reportFilePath(finalMilestone.getReportUrl())
+                        .reportSubmissionDate(finalMilestone.getReportSubmittedAt() != null
+                                ? sdf.format(finalMilestone.getReportSubmittedAt())
+                                : null)
+                        .reportSubmittedBy(finalMilestone.getReportSubmittedBy() != null
+                                ? finalMilestone.getReportSubmittedBy().getName()
+                                : null)
+
+                        // Council info
+                        .councilId(council != null ? council.getId() : null)
+                        .councilName(council != null ? council.getCouncilName() : null)
+                        .councilCode(council != null ? council.getCouncilCode() : null)
+                        .councilDepartment(council != null ? council.getDepartment() : null)
+                        .councilMembers(councilMembersList)
+
+                        // Lecturer mentor info
+                        .hasLecturerMentor(lecturerMember.isPresent() &&
+                                "Approved".equals(lecturerMember.get().getStatus()))
+                        .lecturerMentorId(lecturerMember.isPresent()
+                                ? lecturerMember.get().getAccount().getId()
+                                : null)
+                        .lecturerMentorName(lecturerMember.isPresent()
+                                ? lecturerMember.get().getAccount().getName()
+                                : null)
+                        .lecturerMentorEmail(lecturerMember.isPresent()
+                                ? lecturerMember.get().getAccount().getEmail()
+                                : null)
+                        .lecturerMentorStatus(lecturerMember.isPresent()
+                                ? lecturerMember.get().getStatus()
+                                : null)
+
+                        // Scoring info
+                        .hasBeenScored(!allScores.isEmpty())
+                        .averageScore(avgScore != null ? avgScore : 0.0)
+                        .totalScores(allScores.size())
+                        .expectedTotalScores(councilMembersList.size())
+                        .lecturerScores(lecturerScores)
+
+                        // Member statistics
+                        .totalMembers(projectMembers.size())
+                        .totalStudents(studentMembers.size())
+                        .approvedStudents((int) approvedStudents)
+                        .pendingStudents((int) pendingStudents)
+                        .members(membersList)
+
+                        .build();
+
+                result.add(dto);
+            }
+
+            // ========== Sort by scoring status and due date ==========
+            result.sort((a, b) -> {
+                // Projects đã có điểm lên trước
+                if (a.getHasBeenScored() != b.getHasBeenScored()) {
+                    return a.getHasBeenScored() ? -1 : 1;
+                }
+                // Sau đó sort theo due date (gần nhất lên trước)
+                if (a.getProjectDueDate() != null && b.getProjectDueDate() != null) {
+                    return a.getProjectDueDate().compareTo(b.getProjectDueDate());
+                }
+                return 0;
+            });
+
+            return ResponseDto.success(result, "Found " + result.size() + " project(s) with final report");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseDto.fail("Error: " + e.getMessage());
+        }
+    }
 }
