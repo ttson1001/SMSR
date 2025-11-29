@@ -13,4 +13,6 @@ public interface CouncilMemberRepository extends JpaRepository<CouncilMember, St
     boolean existsByCouncilIdAndLecturerId(Integer councilId, Integer lecturerId);
 
     void deleteByCouncilIdAndLecturerId(Integer councilId, Integer lecturerId);
+
+    
 }
