@@ -9,7 +9,6 @@ import com.example.smrsservice.dto.stats.students.StudentOverviewDto;
 import com.example.smrsservice.service.StudentStatsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,7 +21,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/stats/student")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('STUDENT')")
 public class StudentStatsController {
 
     private final StudentStatsService studentStatsService;

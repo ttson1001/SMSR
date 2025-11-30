@@ -1,6 +1,7 @@
 package com.example.smrsservice.controller;
 
 
+import com.example.smrsservice.dto.common.PaginatedResponseDto;
 import com.example.smrsservice.dto.common.ResponseDto;
 import com.example.smrsservice.dto.stats.admin.*;
 import com.example.smrsservice.service.AdminStatsService;
@@ -57,10 +58,11 @@ public class AdminStatsController {
     }
 
     @GetMapping("/recent-activities")
-    public ResponseEntity<ResponseDto<List<ActivityDto>>> getRecentActivities(
+    public ResponseEntity<PaginatedResponseDto<List<ActivityDto>>> getRecentActivities(
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int limit) {
-        List<ActivityDto> data = adminStatsService.getRecentActivities(limit);
-        return ResponseEntity.ok(ResponseDto.success(data, "Success"));
+        PaginatedResponseDto<List<ActivityDto>> response = adminStatsService.getRecentActivities(page, limit);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/system-health")

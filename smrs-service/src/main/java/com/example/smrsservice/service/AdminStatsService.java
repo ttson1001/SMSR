@@ -1,6 +1,7 @@
 package com.example.smrsservice.service;
 
 import com.example.smrsservice.common.ProjectStatus;
+import com.example.smrsservice.dto.common.PaginatedResponseDto;
 import com.example.smrsservice.dto.stats.admin.*;
 import com.example.smrsservice.entity.Account;
 import com.example.smrsservice.entity.Project;
@@ -140,32 +141,45 @@ public class AdminStatsService {
     /**
      * 6. Recent Activities
      */
-    public List<ActivityDto> getRecentActivities(int limit) {
-        List<ActivityDto> activities = new ArrayList<>();
-
-        // Get all projects sorted by create date
-        List<Project> recentProjects = projectRepository.findAll().stream()
+    public PaginatedResponseDto<List<ActivityDto>> getRecentActivities(int page, int limit) {
+        List<Project> allProjects = projectRepository.findAll().stream()
                 .sorted((a, b) -> b.getCreateDate().compareTo(a.getCreateDate()))
-                .limit(limit)
                 .collect(Collectors.toList());
 
-        for (Project p : recentProjects) {
-            activities.add(ActivityDto.builder()
-                    .type("PROJECT_CREATED")
-                    .userId(p.getOwner().getId())
-                    .userName(p.getOwner().getName())
-                    .projectId(p.getId())
-                    .projectName(p.getName())
-                    .description("Created new project")
-                    .timestamp(p.getCreateDate().toInstant())
-                    .icon("up")
-                    .build());
-        }
-
-        return activities.stream()
-                .sorted((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()))
-                .limit(limit)
+        // Convert to ActivityDto
+        List<ActivityDto> allActivities = allProjects.stream()
+                .map(p -> ActivityDto.builder()
+                        .type("PROJECT_CREATED")
+                        .userId(p.getOwner().getId())
+                        .userName(p.getOwner().getName())
+                        .projectId(p.getId())
+                        .projectName(p.getName())
+                        .description("Created new project")
+                        .timestamp(p.getCreateDate().toInstant())
+                        .icon("up")
+                        .build())
                 .collect(Collectors.toList());
+
+        // Pagination logic
+        int totalElements = allActivities.size();
+        int totalPages = (int) Math.ceil((double) totalElements / limit);
+        int startIndex = page * limit;
+        int endIndex = Math.min(startIndex + limit, totalElements);
+
+        List<ActivityDto> pagedActivities = (startIndex >= totalElements)
+                ? new ArrayList<>()
+                : allActivities.subList(startIndex, endIndex);
+
+        PaginatedResponseDto.PaginationInfo pagination = PaginatedResponseDto.PaginationInfo.builder()
+                .currentPage(page)
+                .pageSize(limit)
+                .totalElements(totalElements)
+                .totalPages(totalPages)
+                .hasNext(page < totalPages - 1)
+                .hasPrevious(page > 0)
+                .build();
+
+        return PaginatedResponseDto.success(pagedActivities, pagination, "Success");
     }
 
     /**
