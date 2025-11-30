@@ -36,4 +36,13 @@ public class PaginatedResponseDto<T> {
                 .pagination(pagination)
                 .build();
     }
+
+    public static <T> PaginatedResponseDto<T> fail(String message) {
+        return PaginatedResponseDto.<T>builder()
+                .success(false)
+                .message(message)
+                .data(null)
+                .pagination(null)
+                .build();
+    }
 }

@@ -142,11 +142,9 @@ public class AdminStatsService {
      * 6. Recent Activities
      */
     public PaginatedResponseDto<List<ActivityDto>> getRecentActivities(int page, int limit) {
-        List<Project> allProjects = projectRepository.findAll().stream()
-                .sorted((a, b) -> b.getCreateDate().compareTo(a.getCreateDate()))
-                .collect(Collectors.toList());
+        // Lấy tất cả activities
+        List<Project> allProjects = projectRepository.findAll();
 
-        // Convert to ActivityDto
         List<ActivityDto> allActivities = allProjects.stream()
                 .map(p -> ActivityDto.builder()
                         .type("PROJECT_CREATED")
@@ -158,13 +156,14 @@ public class AdminStatsService {
                         .timestamp(p.getCreateDate().toInstant())
                         .icon("up")
                         .build())
+                .sorted((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()))
                 .collect(Collectors.toList());
 
         // Pagination logic
-        int totalElements = allActivities.size();
+        long totalElements = allActivities.size();
         int totalPages = (int) Math.ceil((double) totalElements / limit);
         int startIndex = page * limit;
-        int endIndex = Math.min(startIndex + limit, totalElements);
+        int endIndex = Math.min(startIndex + limit, (int) totalElements);
 
         List<ActivityDto> pagedActivities = (startIndex >= totalElements)
                 ? new ArrayList<>()
