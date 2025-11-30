@@ -18,7 +18,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/stats/lecturer")
 @RequiredArgsConstructor
-@PreAuthorize("hasAuthority('Lecturer')")  // ✅ ĐỔI SANG hasAuthority - chú ý chữ L viết hoa
+@PreAuthorize("hasRole('Lecturer')")  // ✅ ĐỔI SANG hasRole('Lecturer')
 public class LecturerStatsController {
 
     private final LecturerStatsService lecturerStatsService;

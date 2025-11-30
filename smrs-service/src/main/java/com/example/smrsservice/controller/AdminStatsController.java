@@ -15,7 +15,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/stats/admin")
 @RequiredArgsConstructor
-@PreAuthorize("hasAuthority('ADMIN')")  // ✅ ĐỔI SANG hasAuthority
+@PreAuthorize("hasRole('ADMIN')")  // ✅ ĐỔI SANG hasRole
 public class AdminStatsController {
 
     private final AdminStatsService adminStatsService;

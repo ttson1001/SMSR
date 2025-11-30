@@ -1,6 +1,7 @@
 package com.example.smrsservice.service;
 
 import com.example.smrsservice.common.ProjectStatus;
+import com.example.smrsservice.dto.common.PaginatedResponseDto;
 import com.example.smrsservice.dto.stats.admin.ActivityDto;
 import com.example.smrsservice.dto.stats.students.DeadlineDto;
 import com.example.smrsservice.dto.stats.students.ProjectProgressDto;
@@ -177,21 +178,24 @@ public class StudentStatsService {
     }
 
     /**
-     * 6. Recent Activities
+     * 6. Recent Activities - với Pagination
      */
-    public List<ActivityDto> getRecentActivities(Authentication authentication, int limit) {
+    public PaginatedResponseDto<List<ActivityDto>> getRecentActivities(
+            Authentication authentication, int page, int limit) {
+
         Account student = getCurrentAccount(authentication);
 
         Set<Integer> projectIds = getMyProjectIds(student.getId());
         List<Project> myProjects = projectRepository.findAllById(projectIds);
 
-        List<ActivityDto> activities = new ArrayList<>();
+        List<ActivityDto> allActivities = new ArrayList<>();
 
+        // Lấy tất cả activities
         for (Project p : myProjects) {
             List<ProjectScore> scores = projectScoreRepository.findByProjectId(p.getId());
             for (ProjectScore score : scores) {
                 if (score.getScoreDate() != null) {
-                    activities.add(ActivityDto.builder()
+                    allActivities.add(ActivityDto.builder()
                             .type("PROJECT_SCORED")
                             .userId(score.getLecturer().getId())
                             .userName(score.getLecturer().getName())
@@ -205,11 +209,32 @@ public class StudentStatsService {
             }
         }
 
-        return activities.stream()
+        // Sort by timestamp
+        allActivities = allActivities.stream()
                 .filter(a -> a.getTimestamp() != null)
                 .sorted((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()))
-                .limit(limit)
                 .collect(Collectors.toList());
+
+        // Pagination logic
+        long totalElements = allActivities.size();
+        int totalPages = (int) Math.ceil((double) totalElements / limit);
+        int startIndex = page * limit;
+        int endIndex = Math.min(startIndex + limit, (int) totalElements);
+
+        List<ActivityDto> pagedActivities = (startIndex >= totalElements)
+                ? new ArrayList<>()
+                : allActivities.subList(startIndex, endIndex);
+
+        PaginatedResponseDto.PaginationInfo pagination = PaginatedResponseDto.PaginationInfo.builder()
+                .currentPage(page)
+                .pageSize(limit)
+                .totalElements(totalElements)
+                .totalPages(totalPages)
+                .hasNext(page < totalPages - 1)
+                .hasPrevious(page > 0)
+                .build();
+
+        return PaginatedResponseDto.success(pagedActivities, pagination, "Success");
     }
 
     /**

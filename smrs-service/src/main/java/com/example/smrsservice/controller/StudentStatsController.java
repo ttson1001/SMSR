@@ -1,5 +1,6 @@
 package com.example.smrsservice.controller;
 
+import com.example.smrsservice.dto.common.PaginatedResponseDto;
 import com.example.smrsservice.dto.common.ResponseDto;
 import com.example.smrsservice.dto.stats.admin.ActivityDto;
 import com.example.smrsservice.dto.stats.students.DeadlineDto;
@@ -9,6 +10,7 @@ import com.example.smrsservice.dto.stats.students.StudentOverviewDto;
 import com.example.smrsservice.service.StudentStatsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,6 +23,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/stats/student")
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('Student')")  // ✅ ĐỔI SANG hasRole('Student')
 public class StudentStatsController {
 
     private final StudentStatsService studentStatsService;
@@ -56,11 +59,15 @@ public class StudentStatsController {
     }
 
     @GetMapping("/recent-activities")
-    public ResponseEntity<ResponseDto<List<ActivityDto>>> getRecentActivities(
+    public ResponseEntity<PaginatedResponseDto<List<ActivityDto>>> getRecentActivities(
             Authentication authentication,
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "15") int limit) {
-        List<ActivityDto> data = studentStatsService.getRecentActivities(authentication, limit);
-        return ResponseEntity.ok(ResponseDto.success(data, "Success"));
+
+        PaginatedResponseDto<List<ActivityDto>> response =
+                studentStatsService.getRecentActivities(authentication, page, limit);
+
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/score-comparison")

@@ -18,7 +18,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/stats/dean")
 @RequiredArgsConstructor
-@PreAuthorize("hasAuthority('DEAN')")  // ✅ ĐỔI SANG hasAuthority
+@PreAuthorize("hasRole('DEAN')")  // ✅ ĐỔI SANG hasRole
 public class DeanStatsController {
 
     private final DeanStatsService deanStatsService;
