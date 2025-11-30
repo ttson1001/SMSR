@@ -13,11 +13,17 @@ public interface ProjectCouncilRepository extends JpaRepository<ProjectCouncil,I
 
     List<ProjectCouncil> findByProjectId(Integer projectId);
 
-    List<ProjectCouncil> findByCouncilId(Integer councilId);
 
     List<ProjectCouncil> findByDecision(String decision);
 
+    @Query("SELECT pc FROM ProjectCouncil pc WHERE pc.council.id = :councilId")
+    List<ProjectCouncil> findByCouncilId(@Param("councilId") Integer councilId);
+
+    /**
+     * Find pending projects by dean
+     */
     @Query("SELECT pc FROM ProjectCouncil pc " +
-            "WHERE pc.council.dean.id = :deanId AND pc.decision = 'PENDING'")
+            "WHERE pc.council.dean.id = :deanId " +
+            "AND pc.decision = com.example.smrsservice.common.DecisionStatus.PENDING")
     List<ProjectCouncil> findPendingProjectsByDean(@Param("deanId") Integer deanId);
 }

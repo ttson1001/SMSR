@@ -3,6 +3,8 @@ package com.example.smrsservice.repository;
 
 import com.example.smrsservice.entity.Milestone;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -23,4 +25,7 @@ public interface MilestoneRepository extends JpaRepository<Milestone, Integer> {
     List<Milestone> findByIsFinal(Boolean isFinal);
 
     List<Milestone> findByReportSubmittedById(Integer submitterId);
+
+    @Query("SELECT m FROM Milestone m WHERE m.project.id = :projectId ORDER BY m.dueDate ASC")
+    List<Milestone> findByProjectId(@Param("projectId") Integer projectId);
 }

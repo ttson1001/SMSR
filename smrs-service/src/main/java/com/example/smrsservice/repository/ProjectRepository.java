@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,7 +26,7 @@ public interface ProjectRepository extends JpaRepository<Project, Integer>, JpaS
     );
 
     /**
-     * Lấy projects theo status
+     * Lấy projects theo status (pagination)
      */
     Page<Project> findByStatus(ProjectStatus status, Pageable pageable);
 
@@ -66,16 +67,56 @@ public interface ProjectRepository extends JpaRepository<Project, Integer>, JpaS
             "WHERE p.id = :id")
     Optional<Project> findByIdWithFilesAndImages(@Param("id") Integer id);
 
+    /**
+     * Lấy danh sách projects theo ownerId
+     */
+    List<Project> findByOwnerId(Integer ownerId);
+
+    // ==================== STATS METHODS ====================
+
+    /**
+     * Count projects by status
+     */
     long countByStatus(ProjectStatus status);
 
     /**
-     * ✅ ADDED: Đếm số projects theo ownerId
+     * Count projects by owner
      */
-    long countByOwnerId(Integer ownerId);
+    @Query("SELECT COUNT(p) FROM Project p WHERE p.owner.id = :ownerId")
+    long countByOwnerId(@Param("ownerId") Integer ownerId);
 
     /**
-     * ✅ ADDED: Lấy danh sách projects theo ownerId
-     * Dùng cho getMyProjects() - lấy projects mà user là owner
+     * Count projects created between dates
      */
-    List<Project> findByOwnerId(Integer ownerId);
+    @Query("SELECT COUNT(p) FROM Project p WHERE p.createDate BETWEEN :startDate AND :endDate")
+    long countCreatedBetween(
+            @Param("startDate") Date startDate,
+            @Param("endDate") Date endDate);
+
+    /**
+     * Count projects by status and created between dates
+     */
+    @Query("SELECT COUNT(p) FROM Project p WHERE p.status = :status AND p.createDate BETWEEN :startDate AND :endDate")
+    long countByStatusAndCreateDateBetween(
+            @Param("status") ProjectStatus status,
+            @Param("startDate") Date startDate,
+            @Param("endDate") Date endDate);
+
+    /**
+     * Find ALL projects by status (no pagination - for stats)
+     */
+    List<Project> findAllByStatus(ProjectStatus status);
+
+    /**
+     * Find projects by multiple statuses
+     */
+    List<Project> findByStatusIn(List<ProjectStatus> statuses);
+
+    /**
+     * Find projects created between dates
+     */
+    @Query("SELECT p FROM Project p WHERE p.createDate BETWEEN :startDate AND :endDate")
+    List<Project> findByCreateDateBetween(
+            @Param("startDate") Date startDate,
+            @Param("endDate") Date endDate);
 }

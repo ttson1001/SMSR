@@ -13,7 +13,6 @@ import java.util.Optional;
 public interface CouncilRepository extends JpaRepository<Council, Integer> {
     Optional<Council> findByCouncilCode(String councilCode);
 
-    List<Council> findByDeanId(Integer deanId);
 
     List<Council> findByDepartment(String department);
 
@@ -22,5 +21,10 @@ public interface CouncilRepository extends JpaRepository<Council, Integer> {
     @Query("SELECT c FROM Council c WHERE c.dean.id = :deanId AND c.status = :status")
     List<Council> findByDeanIdAndStatus(@Param("deanId") Integer deanId,
                                         @Param("status") String status);
+
+
+
+    @Query("SELECT c FROM Council c WHERE c.dean.id = :deanId")
+    List<Council> findByDeanId(@Param("deanId") Integer deanId);
 
 }

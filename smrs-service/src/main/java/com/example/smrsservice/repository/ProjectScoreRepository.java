@@ -15,8 +15,6 @@ public interface ProjectScoreRepository extends JpaRepository<ProjectScore, Inte
 
     List<ProjectScore> findByFinalMilestoneId(Integer milestoneId);
 
-    List<ProjectScore> findByLecturerId(Integer lecturerId);
-
     @Query("SELECT AVG(ps.finalScore) FROM ProjectScore ps WHERE ps.project.id = :projectId")
     Double getAverageScoreByProjectId(@Param("projectId") Integer projectId);
 
@@ -24,5 +22,14 @@ public interface ProjectScoreRepository extends JpaRepository<ProjectScore, Inte
     Double getAverageScoreByFinalReportId(@Param("finalReportId") Integer finalReportId);
 
     boolean existsByFinalMilestoneIdAndLecturerId(Integer milestoneId, Integer lecturerId);
+
+    @Query("SELECT AVG(ps.finalScore) FROM ProjectScore ps WHERE ps.project.owner.id = :studentId")
+    Double getAverageScoreByStudentId(@Param("studentId") Integer studentId);
+
+    /**
+     * Find scores by lecturer
+     */
+    @Query("SELECT ps FROM ProjectScore ps WHERE ps.lecturer.id = :lecturerId ORDER BY ps.scoreDate DESC")
+    List<ProjectScore> findByLecturerId(@Param("lecturerId") Integer lecturerId);
 
 }

@@ -97,4 +97,12 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, In
      * Lấy tất cả project members theo accountId
      */
     List<ProjectMember> findByAccountId(Integer accountId);
+
+    /**
+     * Find project members by account and role
+     */
+    @Query("SELECT pm FROM ProjectMember pm WHERE pm.account.id = :accountId AND pm.memberRole = :memberRole")
+    List<ProjectMember> findByAccountIdAndMemberRole(
+            @Param("accountId") Integer accountId,
+            @Param("memberRole") String memberRole);
 }
