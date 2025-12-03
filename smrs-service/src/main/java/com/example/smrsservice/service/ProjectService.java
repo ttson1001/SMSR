@@ -413,6 +413,39 @@ public class ProjectService {
     }
 
     private ProjectResponse toResponse(Project p) {
+        // ========== Lấy danh sách members ==========
+        List<ProjectMember> allMembers = projectMemberRepository.findByProjectId(p.getId());
+
+        // ========== Tìm lecturer mentor ==========
+        Optional<ProjectMember> lecturerMember = allMembers.stream()
+                .filter(pm -> "LECTURER".equalsIgnoreCase(pm.getMemberRole()))
+                .findFirst();
+
+        ProjectResponse.MentorInfo mentor = null;
+        if (lecturerMember.isPresent()) {
+            ProjectMember lm = lecturerMember.get();
+            mentor = ProjectResponse.MentorInfo.builder()
+                    .projectMemberId(lm.getId())
+                    .accountId(lm.getAccount().getId())
+                    .name(lm.getAccount().getName())
+                    .email(lm.getAccount().getEmail())
+                    .status(lm.getStatus())
+                    .build();
+        }
+
+        // ========== Lấy danh sách students ==========
+        List<ProjectResponse.StudentInfo> students = allMembers.stream()
+                .filter(pm -> "STUDENT".equalsIgnoreCase(pm.getMemberRole()))
+                .map(pm -> ProjectResponse.StudentInfo.builder()
+                        .projectMemberId(pm.getId())
+                        .accountId(pm.getAccount().getId())
+                        .name(pm.getAccount().getName())
+                        .email(pm.getAccount().getEmail())
+                        .status(pm.getStatus())
+                        .build())
+                .collect(Collectors.toList());
+
+        // ========== Build files & images như cũ ==========
         List<ProjectResponse.FileInfo> files = (p.getFiles() != null)
                 ? p.getFiles().stream()
                 .map(f -> ProjectResponse.FileInfo.builder()
@@ -438,22 +471,33 @@ public class ProjectService {
                 ? p.getCreateDate().toInstant()
                 : null;
 
+        // ========== Return với mentor & students ==========
         return ProjectResponse.builder()
                 .id(p.getId())
                 .name(p.getName())
                 .description(p.getDescription())
                 .type(p.getType())
                 .dueDate(dueDate)
+
+                // Owner info
                 .ownerId(p.getOwner() != null ? p.getOwner().getId() : null)
                 .ownerName(p.getOwner() != null ? p.getOwner().getName() : null)
                 .ownerEmail(p.getOwner() != null ? p.getOwner().getEmail() : null)
-                .ownerRole(p.getOwner() != null && p.getOwner().getRole() != null ? p.getOwner().getRole().getRoleName() : null)
+                .ownerRole(p.getOwner() != null && p.getOwner().getRole() != null
+                        ? p.getOwner().getRole().getRoleName() : null)
+
                 .status(p.getStatus())
                 .majorId(p.getMajor() != null ? p.getMajor().getId() : null)
                 .majorName(p.getMajor() != null ? p.getMajor().getName() : null)
                 .createdAt(createdAt)
+
                 .files(files)
                 .images(images)
+
+                // ⭐⭐⭐ THÊM MỚI ⭐⭐⭐
+                .mentor(mentor)
+                .students(students)
+
                 .build();
     }
 

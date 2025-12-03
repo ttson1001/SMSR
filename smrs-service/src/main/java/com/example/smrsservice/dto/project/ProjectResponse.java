@@ -12,6 +12,8 @@ import java.util.List;
 
 @Data
 @Builder
+@NoArgsConstructor      // ⭐ THÊM annotation này
+@AllArgsConstructor     // ⭐ THÊM annotation này
 public class ProjectResponse {
     private Integer id;
     private String name;
@@ -28,9 +30,12 @@ public class ProjectResponse {
     private Integer majorId;
     private String majorName;
 
-
     private List<FileInfo> files;
     private List<String> images;
+
+
+    private MentorInfo mentor;
+    private List<StudentInfo> students;
 
     @Data
     @Builder
@@ -41,5 +46,29 @@ public class ProjectResponse {
         private String fileName;
         private String fileUrl;
         private String fileType;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MentorInfo {
+        private Integer projectMemberId;
+        private Integer accountId;
+        private String name;
+        private String email;
+        private String status;  // "Approved", "Pending", "Rejected"
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StudentInfo {
+        private Integer projectMemberId;
+        private Integer accountId;
+        private String name;
+        private String email;
+        private String status;  // "Approved", "Pending", "Rejected"
     }
 }
