@@ -221,4 +221,16 @@ public class ProjectController {
             Authentication authentication) {
         return ResponseEntity.ok(projectService.getMyProjectsWithFinalReport(authentication));
     }
+
+    @GetMapping("/mentoring")
+    public ResponseEntity<ResponseDto<List<MentoringProjectDto>>> getMyMentoringProjects(
+            Authentication authentication) {
+
+        ResponseDto<List<MentoringProjectDto>> response =
+                projectService.getMyMentoringProjects(authentication);
+
+        return ResponseEntity.status(
+                response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST
+        ).body(response);
+    }
 }

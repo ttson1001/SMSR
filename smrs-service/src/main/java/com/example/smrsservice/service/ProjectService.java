@@ -1233,4 +1233,172 @@ public class ProjectService {
             return ResponseDto.fail("Error: " + e.getMessage());
         }
     }
+
+    /**
+     * API: GET /api/projects/mentoring
+     * Lecturer xem các projects mà mình đang mentor
+     */
+    public ResponseDto<List<MentoringProjectDto>> getMyMentoringProjects(Authentication authentication) {
+        try {
+            Account lecturer = getCurrentAccount(authentication);
+
+            // Kiểm tra role
+            if (lecturer.getRole() == null ||
+                    !"LECTURER".equalsIgnoreCase(lecturer.getRole().getRoleName())) {
+                return ResponseDto.fail("Only lecturers can access this endpoint");
+            }
+
+            // Tìm tất cả projects mà lecturer này là mentor (member với role LECTURER)
+            List<ProjectMember> mentoringMembers = projectMemberRepository
+                    .findByAccountId(lecturer.getId()).stream()
+                    .filter(pm -> "LECTURER".equalsIgnoreCase(pm.getMemberRole()))
+                    .collect(Collectors.toList());
+
+            if (mentoringMembers.isEmpty()) {
+                return ResponseDto.success(new ArrayList<>(),
+                        "You are not mentoring any projects");
+            }
+
+            // Build response
+            List<MentoringProjectDto> result = new ArrayList<>();
+
+            for (ProjectMember pm : mentoringMembers) {
+                Project project = pm.getProject();
+
+                // Lấy danh sách students trong project
+                List<ProjectMember> studentMembers = projectMemberRepository
+                        .findByProjectId(project.getId()).stream()
+                        .filter(m -> "STUDENT".equalsIgnoreCase(m.getMemberRole()))
+                        .collect(Collectors.toList());
+
+                long approvedStudents = studentMembers.stream()
+                        .filter(m -> "Approved".equals(m.getStatus()))
+                        .count();
+
+                long pendingStudents = studentMembers.stream()
+                        .filter(m -> "Pending".equals(m.getStatus()))
+                        .count();
+
+                // Lấy final milestone (nếu có)
+                Optional<Milestone> finalMilestoneOpt = milestoneRepository
+                        .findByProjectIdAndIsFinal(project.getId(), true);
+
+                boolean hasFinalReport = finalMilestoneOpt.isPresent();
+                String finalReportUrl = finalMilestoneOpt.isPresent()
+                        ? finalMilestoneOpt.get().getReportUrl()
+                        : null;
+
+                // Lấy average score (nếu đã có điểm)
+                Double avgScore = null;
+                if (hasFinalReport) {
+                    avgScore = projectScoreRepository.getAverageScoreByFinalReportId(
+                            finalMilestoneOpt.get().getId());
+                }
+
+                // Lấy danh sách students với thông tin chi tiết
+                List<MentoringProjectDto.StudentInfo> students = studentMembers.stream()
+                        .map(sm -> MentoringProjectDto.StudentInfo.builder()
+                                .projectMemberId(sm.getId())
+                                .accountId(sm.getAccount().getId())
+                                .name(sm.getAccount().getName())
+                                .email(sm.getAccount().getEmail())
+                                .status(sm.getStatus())
+                                .build())
+                        .collect(Collectors.toList());
+
+                // Lấy tất cả milestones
+                List<Milestone> milestones = milestoneRepository
+                        .findByProjectId(project.getId());
+
+                long completedMilestones = milestones.stream()
+                        .filter(m -> "Completed".equalsIgnoreCase(m.getStatus()))
+                        .count();
+
+                // Build DTO
+                MentoringProjectDto dto = MentoringProjectDto.builder()
+                        // Project info
+                        .projectId(project.getId())
+                        .projectName(project.getName())
+                        .projectDescription(project.getDescription())
+                        .projectType(project.getType())
+                        .projectStatus(project.getStatus() != null
+                                ? project.getStatus().toString()
+                                : null)
+                        .projectCreateDate(project.getCreateDate())
+                        .projectDueDate(project.getDueDate())
+
+                        // Owner info
+                        .ownerId(project.getOwner().getId())
+                        .ownerName(project.getOwner().getName())
+                        .ownerEmail(project.getOwner().getEmail())
+                        .ownerRole(project.getOwner().getRole() != null
+                                ? project.getOwner().getRole().getRoleName()
+                                : null)
+
+                        // Major info
+                        .majorId(project.getMajor() != null
+                                ? project.getMajor().getId()
+                                : null)
+                        .majorName(project.getMajor() != null
+                                ? project.getMajor().getName()
+                                : null)
+
+                        // Mentoring info
+                        .projectMemberId(pm.getId())
+                        .mentoringStatus(pm.getStatus())  // Approved, Pending, Rejected
+
+                        // Students info
+                        .students(students)
+                        .totalStudents(studentMembers.size())
+                        .approvedStudents((int) approvedStudents)
+                        .pendingStudents((int) pendingStudents)
+
+                        // Milestones info
+                        .totalMilestones(milestones.size())
+                        .completedMilestones((int) completedMilestones)
+                        .hasFinalReport(hasFinalReport)
+                        .finalReportUrl(finalReportUrl)
+
+                        // Scoring info
+                        .averageScore(avgScore)
+                        .hasBeenScored(avgScore != null)
+
+                        .build();
+
+                result.add(dto);
+            }
+
+            // Sort: Approved projects first, then by due date
+            result.sort((a, b) -> {
+                // Approved lên trước
+                if (!a.getMentoringStatus().equals(b.getMentoringStatus())) {
+                    return "Approved".equals(a.getMentoringStatus()) ? -1 : 1;
+                }
+                // Sort by due date (gần nhất lên trước)
+                if (a.getProjectDueDate() != null && b.getProjectDueDate() != null) {
+                    return a.getProjectDueDate().compareTo(b.getProjectDueDate());
+                }
+                return 0;
+            });
+
+            // Statistics
+            long approved = result.stream()
+                    .filter(p -> "Approved".equals(p.getMentoringStatus()))
+                    .count();
+            long pending = result.stream()
+                    .filter(p -> "Pending".equals(p.getMentoringStatus()))
+                    .count();
+
+            String message = String.format(
+                    "Found %d project(s): %d approved, %d pending",
+                    result.size(), approved, pending
+            );
+
+            return ResponseDto.success(result, message);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
 }

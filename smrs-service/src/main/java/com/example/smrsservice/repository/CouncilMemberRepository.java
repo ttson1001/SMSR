@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface CouncilMemberRepository extends JpaRepository<CouncilMember, String> {
 
@@ -25,6 +26,15 @@ public interface CouncilMemberRepository extends JpaRepository<CouncilMember, St
      */
     @Query("SELECT cm FROM CouncilMember cm WHERE cm.council.id = :councilId")
     List<CouncilMember> findByCouncilId(@Param("councilId") Integer councilId);
+
+    /**
+     * Tìm member theo councilId và lecturerId
+     * Dùng để xóa member khỏi council
+     */
+    Optional<CouncilMember> findByCouncilIdAndLecturerId(
+            Integer councilId,
+            Integer lecturerId
+    );
 
     
 }

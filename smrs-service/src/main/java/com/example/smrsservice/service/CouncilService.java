@@ -488,4 +488,213 @@ public class CouncilService {
             return ResponseDto.fail(e.getMessage());
         }
     }
+
+    /**
+     * UPDATE council - Cập nhật thông tin và thêm members
+     */
+    @Transactional
+    public ResponseDto<CouncilResponse> updateCouncil(
+            Integer councilId,
+            CreateCouncilRequest request,
+            Authentication authentication) {
+        try {
+            Account currentUser = getCurrentAccount(authentication);
+
+            // Check role DEAN
+            if (currentUser.getRole() == null ||
+                    !"DEAN".equalsIgnoreCase(currentUser.getRole().getRoleName())) {
+                return ResponseDto.fail("Only deans can update councils");
+            }
+
+            // Find council
+            Council council = councilRepository.findById(councilId)
+                    .orElseThrow(() -> new RuntimeException("Council not found"));
+
+            // Check authorization
+            CouncilManagerProfile deanProfile = councilProfileRepository
+                    .findByAccountId(currentUser.getId())
+                    .orElseThrow(() -> new RuntimeException("Dean profile not found"));
+
+            if (!council.getDean().getId().equals(deanProfile.getId())) {
+                return ResponseDto.fail("You are not authorized to update this council");
+            }
+
+            // Update basic info
+            if (request.getCouncilName() != null && !request.getCouncilName().isBlank()) {
+                council.setCouncilName(request.getCouncilName());
+            }
+            if (request.getDepartment() != null && !request.getDepartment().isBlank()) {
+                council.setDepartment(request.getDepartment());
+            }
+            if (request.getDescription() != null) {
+                council.setDescription(request.getDescription());
+            }
+            councilRepository.save(council);
+
+            // Add new members
+            int addedCount = 0;
+            int alreadyExistsCount = 0;
+            List<String> notFoundEmails = new ArrayList<>();
+            List<String> notLecturerEmails = new ArrayList<>();
+
+            if (request.getLecturerEmails() != null && !request.getLecturerEmails().isEmpty()) {
+                for (String email : request.getLecturerEmails()) {
+                    try {
+                        Optional<Account> lecturerOpt = accountRepository.findByEmail(email.trim());
+
+                        if (lecturerOpt.isEmpty()) {
+                            notFoundEmails.add(email);
+                            continue;
+                        }
+
+                        Account lecturer = lecturerOpt.get();
+
+                        if (lecturer.getRole() == null ||
+                                !"LECTURER".equalsIgnoreCase(lecturer.getRole().getRoleName())) {
+                            notLecturerEmails.add(email);
+                            continue;
+                        }
+
+                        if (councilMemberRepository.existsByCouncilIdAndLecturerId(
+                                council.getId(), lecturer.getId())) {
+                            alreadyExistsCount++;
+                            continue;
+                        }
+
+                        CouncilMember member = new CouncilMember();
+                        member.setCouncil(council);
+                        member.setLecturer(lecturer);
+                        member.setRole("Member");
+                        member.setStatus("ACTIVE");
+                        councilMemberRepository.save(member);
+                        addedCount++;
+
+                    } catch (Exception e) {
+                        System.err.println("Error adding lecturer " + email + ": " + e.getMessage());
+                    }
+                }
+            }
+
+            // Build response message
+            StringBuilder message = new StringBuilder("Council updated successfully");
+            if (addedCount > 0) {
+                message.append(". Added ").append(addedCount).append(" new member(s)");
+            }
+            if (alreadyExistsCount > 0) {
+                message.append(". ").append(alreadyExistsCount).append(" member(s) already exists");
+            }
+            if (!notFoundEmails.isEmpty()) {
+                message.append(". ⚠️ Email not found: ").append(String.join(", ", notFoundEmails));
+            }
+            if (!notLecturerEmails.isEmpty()) {
+                message.append(". ⚠️ Not lecturer: ").append(String.join(", ", notLecturerEmails));
+            }
+
+            CouncilResponse response = buildCouncilResponse(council);
+            return ResponseDto.success(response, message.toString());
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * DELETE council - Soft delete (status = INACTIVE)
+     */
+    @Transactional
+    public ResponseDto<String> deleteCouncil(
+            Integer councilId,
+            Authentication authentication) {
+        try {
+            Account currentUser = getCurrentAccount(authentication);
+
+            // Check role DEAN
+            if (!"DEAN".equalsIgnoreCase(currentUser.getRole().getRoleName())) {
+                return ResponseDto.fail("Only deans can delete councils");
+            }
+
+            // Find council
+            Council council = councilRepository.findById(councilId)
+                    .orElseThrow(() -> new RuntimeException("Council not found"));
+
+            // Check authorization
+            CouncilManagerProfile deanProfile = councilProfileRepository
+                    .findByAccountId(currentUser.getId())
+                    .orElseThrow(() -> new RuntimeException("Dean profile not found"));
+
+            if (!council.getDean().getId().equals(deanProfile.getId())) {
+                return ResponseDto.fail("You are not authorized to delete this council");
+            }
+
+            // Check pending projects
+            List<ProjectCouncil> activeProjects = projectCouncilRepository
+                    .findByCouncilId(councilId).stream()
+                    .filter(pc -> pc.getDecision() == DecisionStatus.PENDING)
+                    .collect(Collectors.toList());
+
+            if (!activeProjects.isEmpty()) {
+                return ResponseDto.fail(
+                        "Cannot delete council. There are " + activeProjects.size() +
+                                " pending project(s) being reviewed"
+                );
+            }
+
+            // Soft delete
+            council.setStatus("INACTIVE");
+            councilRepository.save(council);
+
+            return ResponseDto.success(null,
+                    "Council deleted successfully (status changed to INACTIVE)");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * REMOVE member từ council
+     */
+    @Transactional
+    public ResponseDto<String> removeMemberFromCouncil(
+            Integer councilId,
+            Integer lecturerId,
+            Authentication authentication) {
+        try {
+            Account currentUser = getCurrentAccount(authentication);
+
+            // Check role DEAN
+            if (!"DEAN".equalsIgnoreCase(currentUser.getRole().getRoleName())) {
+                return ResponseDto.fail("Only deans can remove members");
+            }
+
+            // Find council
+            Council council = councilRepository.findById(councilId)
+                    .orElseThrow(() -> new RuntimeException("Council not found"));
+
+            // Check authorization
+            CouncilManagerProfile deanProfile = councilProfileRepository
+                    .findByAccountId(currentUser.getId())
+                    .orElseThrow(() -> new RuntimeException("Dean profile not found"));
+
+            if (!council.getDean().getId().equals(deanProfile.getId())) {
+                return ResponseDto.fail("You are not authorized to modify this council");
+            }
+
+            // Find and delete member
+            CouncilMember member = councilMemberRepository
+                    .findByCouncilIdAndLecturerId(councilId, lecturerId)
+                    .orElseThrow(() -> new RuntimeException("Member not found in this council"));
+
+            councilMemberRepository.delete(member);
+
+            return ResponseDto.success(null,
+                    "Member removed from council successfully");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
 }

@@ -8,6 +8,7 @@ import com.example.smrsservice.dto.concil.ProjectCouncilDto;
 import com.example.smrsservice.service.CouncilService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -112,4 +113,54 @@ public class CouncilController {
             Authentication authentication) {
         return ResponseEntity.ok(councilService.getMyJoinedCouncils(authentication));
     }
+
+    @PutMapping("/{councilId}")
+    public ResponseEntity<ResponseDto<CouncilResponse>> updateCouncil(
+            @PathVariable Integer councilId,
+            @RequestBody CreateCouncilRequest request,
+            Authentication authentication) {
+
+        ResponseDto<CouncilResponse> response = councilService.updateCouncil(
+                councilId, request, authentication
+        );
+
+        return ResponseEntity.status(
+                response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST
+        ).body(response);
+    }
+
+    @DeleteMapping("/{councilId}")
+    public ResponseEntity<ResponseDto<String>> deleteCouncil(
+            @PathVariable Integer councilId,
+            Authentication authentication) {
+
+        ResponseDto<String> response = councilService.deleteCouncil(
+                councilId, authentication
+        );
+
+        return ResponseEntity.status(
+                response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST
+        ).body(response);
+    }
+
+
+    /**
+     * DELETE /api/councils/{councilId}/members/{lecturerId}
+     * Xóa 1 lecturer khỏi hội đồng
+     */
+    @DeleteMapping("/{councilId}/members/{lecturerId}")
+    public ResponseEntity<ResponseDto<String>> removeMemberFromCouncil(
+            @PathVariable Integer councilId,
+            @PathVariable Integer lecturerId,
+            Authentication authentication) {
+
+        ResponseDto<String> response = councilService.removeMemberFromCouncil(
+                councilId, lecturerId, authentication
+        );
+
+        return ResponseEntity.status(
+                response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST
+        ).body(response);
+    }
+
 }
