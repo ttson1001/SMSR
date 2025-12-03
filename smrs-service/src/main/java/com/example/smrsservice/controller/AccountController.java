@@ -1,5 +1,6 @@
 package com.example.smrsservice.controller;
 
+import com.example.smrsservice.common.AccountStatus;
 import com.example.smrsservice.dto.account.*;
 import com.example.smrsservice.dto.auth.LoginRequest;
 import com.example.smrsservice.dto.auth.LoginResponseDto;
@@ -73,9 +74,30 @@ public class AccountController {
         }
     }
 
-    @GetMapping("/list")
-    PageResponse<AccountDetailResponse> getAccountDetail(@RequestParam Integer page, @RequestParam Integer size) {
-        return accountService.getAccountDetail(page, size);
+    @GetMapping
+    public ResponseEntity<PageResponse<AccountDetailResponse>> getAllAccounts(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) String status) {
+
+        // Convert string status to enum
+        AccountStatus accountStatus = null;
+        if (status != null && !status.isBlank()) {
+            try {
+                accountStatus = AccountStatus.valueOf(status.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                // Invalid status, ignore
+            }
+        }
+
+        PageResponse<AccountDetailResponse> response = accountService.getAccountDetail(
+                page, size, name, email, role, accountStatus
+        );
+
+        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{id}")

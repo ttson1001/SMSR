@@ -15,6 +15,7 @@ public class AccountDto {
     private String email;
     private String phone;
     private Integer age;
+    private String avatar;
     private String gender;
     private String address;
     private String role;

@@ -11,12 +11,14 @@ import com.example.smrsservice.entity.Role;
 import com.example.smrsservice.repository.AccountRepository;
 import com.example.smrsservice.repository.RoleRepository;
 import com.example.smrsservice.security.JwtTokenUtil;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -198,11 +200,20 @@ public class AccountService {
         return "";
     }
 
-    public PageResponse<AccountDetailResponse> getAccountDetail(int page , int size) {
+    public PageResponse<AccountDetailResponse> getAccountDetail(
+            int page,
+            int size,
+            String name,
+            String email,
+            String role,
+            AccountStatus status) {
 
         Pageable pageable = PageRequest.of(page - 1, size);
 
-        Page<Account> accounts = accountRepository.findAll(pageable);
+        // Build Specification để filter
+        Specification<Account> spec = buildAccountSpecification(name, email, role, status);
+
+        Page<Account> accounts = accountRepository.findAll(spec, pageable);
 
         List<Account> accountList = accounts.getContent();
 
@@ -223,7 +234,6 @@ public class AccountService {
                         .locked(account.getStatus() != null && account.getStatus() == AccountStatus.LOCKED)
                         .build()).toList())
                 .build();
-
     }
     public void deleteAccount(Integer id) {
         Account account = accountRepository.findById(id)
@@ -288,6 +298,7 @@ public class AccountService {
                     .name(account.getName())
                     .email(account.getEmail())
                     .phone(account.getPhone())
+                    .avatar(account.getAvatar())
                     .role(account.getRole() != null ? account.getRole().getRoleName() : null)
                     .age(account.getAge())
                     .build();
@@ -437,6 +448,59 @@ public class AccountService {
         } catch (Exception e) {
             return ResponseDto.fail(e.getMessage());
         }
+    }
+
+    /**
+     * Build Specification để filter accounts
+     */
+    private Specification<Account> buildAccountSpecification(
+            String name,
+            String email,
+            String role,
+            AccountStatus status) {
+
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            // Filter by name (partial match, case-insensitive)
+            if (name != null && !name.isBlank()) {
+                predicates.add(
+                        criteriaBuilder.like(
+                                criteriaBuilder.lower(root.get("name")),
+                                "%" + name.toLowerCase().trim() + "%"
+                        )
+                );
+            }
+
+            // Filter by email (partial match, case-insensitive)
+            if (email != null && !email.isBlank()) {
+                predicates.add(
+                        criteriaBuilder.like(
+                                criteriaBuilder.lower(root.get("email")),
+                                "%" + email.toLowerCase().trim() + "%"
+                        )
+                );
+            }
+
+            // Filter by role (exact match)
+            if (role != null && !role.isBlank()) {
+                predicates.add(
+                        criteriaBuilder.equal(
+                                root.get("role").get("roleName"),
+                                role.trim()
+                        )
+                );
+            }
+
+            // Filter by status (exact match)
+            if (status != null) {
+                predicates.add(
+                        criteriaBuilder.equal(root.get("status"), status)
+                );
+            }
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
 }
