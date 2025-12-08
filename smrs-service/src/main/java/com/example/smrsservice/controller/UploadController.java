@@ -40,7 +40,7 @@ public class UploadController {
                         .body(ResponseDto.fail("File is empty"));
             }
 
-            String fileUrl = uploadService.uploadFile(file);
+            String fileUrl = uploadService.uploadFileToNode(file, "SMSR");
             return ResponseEntity.ok(ResponseDto.success(fileUrl, "File uploaded successfully"));
 
         } catch (Exception e) {
@@ -49,28 +49,28 @@ public class UploadController {
         }
     }
 
-    @PostMapping(value = "/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Upload multiple files")
-    public ResponseEntity<ResponseDto<List<FileUploadResponse>>> uploadMultiple(
-            @Parameter(
-                    description = "Select multiple files",
-                    required = true,
-                    content = @Content(
-                            mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
-                            array = @ArraySchema(schema = @Schema(type = "string", format = "binary"))
-                    )
-            )
-            @RequestPart("files") List<MultipartFile> files) {
-
-        try {
-            List<FileUploadResponse> results = uploadService.uploadMultipleFiles(files);
-            return ResponseEntity.ok(
-                    ResponseDto.success(results, "Files uploaded successfully")
-            );
-
-        } catch (Exception e) {
-            return ResponseEntity.badRequest()
-                    .body(ResponseDto.fail("Upload failed: " + e.getMessage()));
-        }
-    }
+//    @PostMapping(value = "/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+//    @Operation(summary = "Upload multiple files")
+//    public ResponseEntity<ResponseDto<List<FileUploadResponse>>> uploadMultiple(
+//            @Parameter(
+//                    description = "Select multiple files",
+//                    required = true,
+//                    content = @Content(
+//                            mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+//                            array = @ArraySchema(schema = @Schema(type = "string", format = "binary"))
+//                    )
+//            )
+//            @RequestPart("files") List<MultipartFile> files) {
+//
+//        try {
+//            List<FileUploadResponse> results = uploadService.uploadMultipleFiles(files);
+//            return ResponseEntity.ok(
+//                    ResponseDto.success(results, "Files uploaded successfully")
+//            );
+//
+//        } catch (Exception e) {
+//            return ResponseEntity.badRequest()
+//                    .body(ResponseDto.fail("Upload failed: " + e.getMessage()));
+//        }
+//    }
 }
