@@ -90,11 +90,11 @@ public class ProjectService {
             Authentication authentication) {
 
         Set<String> allowed = Set.of("id", "name", "type", "dueDate", "description", "createDate");
-        String by = allowed.contains(sortBy) ? sortBy : "id";
+        String by = allowed.contains(sortBy) ? sortBy : "createDate";
 
-        Sort sort = "desc".equalsIgnoreCase(sortDir)
-                ? Sort.by(by).descending()
-                : Sort.by(by).ascending();
+        Sort sort = "asc".equalsIgnoreCase(sortDir)
+                ? Sort.by(by).ascending()
+                : Sort.by(by).descending();
 
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(size, 1), sort);
 
@@ -223,8 +223,12 @@ public class ProjectService {
             }
 
             String roleName = owner.getRole().getRoleName();
-            if (!"LECTURER".equalsIgnoreCase(roleName) && !"STUDENT".equalsIgnoreCase(roleName)) {
-                return ResponseDto.fail("Only lecturers and students can create projects");
+
+
+            Set<String> allowedRoles = Set.of("LECTURER", "STUDENT", "ADMIN", "DEAN");
+
+            if (!allowedRoles.contains(roleName.toUpperCase())) {
+                return ResponseDto.fail("You don't have permission to create projects");
             }
 
             Project project = new Project();
@@ -262,6 +266,7 @@ public class ProjectService {
 
             projectRepository.save(project);
 
+            // ✅ Chỉ invite members nếu không phải ADMIN/DEAN (hoặc vẫn cho phép tùy logic)
             if (dto.getInvitedEmails() != null && !dto.getInvitedEmails().isEmpty()) {
                 inviteMembers(project, dto.getInvitedEmails(), owner);
             }
@@ -494,7 +499,7 @@ public class ProjectService {
                 .files(files)
                 .images(images)
 
-                // ⭐⭐⭐ THÊM MỚI ⭐⭐⭐
+               
                 .mentor(mentor)
                 .students(students)
 
@@ -510,9 +515,17 @@ public class ProjectService {
 
             Optional<ProjectMember> lecturerMember = allMembers.stream()
                     .filter(pm -> "LECTURER".equalsIgnoreCase(pm.getMemberRole()))
+                    .filter(pm -> "Approved".equals(pm.getStatus()))  // ✅ Chỉ lấy lecturer đã approved
                     .findFirst();
 
-            List<ProjectMember> studentMembers = allMembers.stream()
+            // ✅ Chỉ lấy students đã Approved để hiển thị trong danh sách thành viên
+            List<ProjectMember> approvedStudentMembers = allMembers.stream()
+                    .filter(pm -> "STUDENT".equalsIgnoreCase(pm.getMemberRole()))
+                    .filter(pm -> "Approved".equals(pm.getStatus()))  // ✅ Chỉ Approved
+                    .collect(Collectors.toList());
+
+            // Tính toán statistics từ tất cả students (để biết pending count)
+            List<ProjectMember> allStudentMembers = allMembers.stream()
                     .filter(pm -> "STUDENT".equalsIgnoreCase(pm.getMemberRole()))
                     .collect(Collectors.toList());
 
@@ -536,7 +549,8 @@ public class ProjectService {
                         .build();
             }
 
-            List<ProjectDetailResponse.MemberInfo> membersInfo = studentMembers.stream()
+            // ✅ Chỉ hiển thị approved students
+            List<ProjectDetailResponse.MemberInfo> membersInfo = approvedStudentMembers.stream()
                     .map(pm -> ProjectDetailResponse.MemberInfo.builder()
                             .id(pm.getId())
                             .accountId(pm.getAccount().getId())
@@ -563,10 +577,11 @@ public class ProjectService {
                             .build())
                     .collect(Collectors.toList());
 
-            long approvedCount = studentMembers.stream()
+            // Statistics vẫn tính từ tất cả để owner biết có bao nhiêu pending
+            long approvedCount = allStudentMembers.stream()
                     .filter(pm -> "Approved".equals(pm.getStatus()))
                     .count();
-            long pendingCount = studentMembers.stream()
+            long pendingCount = allStudentMembers.stream()
                     .filter(pm -> "Pending".equals(pm.getStatus()))
                     .count();
 
@@ -574,14 +589,13 @@ public class ProjectService {
             Integer totalScores = projectScoreRepository.findByProjectId(projectId).size();
 
             ProjectDetailResponse.Statistics statistics = ProjectDetailResponse.Statistics.builder()
-                    .totalMembers(studentMembers.size())
+                    .totalMembers((int) approvedCount)  // ✅ Chỉ đếm approved
                     .approvedMembers((int) approvedCount)
                     .pendingMembers((int) pendingCount)
-                    .totalStudents(studentMembers.size())
+                    .totalStudents((int) approvedCount)  // ✅ Chỉ đếm approved
                     .totalFiles(project.getFiles() != null ? project.getFiles().size() : 0)
                     .totalImages(project.getImages() != null ? project.getImages().size() : 0)
-                    .hasLecturer(lecturerMember.isPresent() &&
-                            "Approved".equals(lecturerMember.get().getStatus()))
+                    .hasLecturer(lecturerMember.isPresent())
                     .build();
 
             ProjectDetailResponse response = ProjectDetailResponse.builder()

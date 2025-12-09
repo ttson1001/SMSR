@@ -1,8 +1,11 @@
 package com.example.smrsservice.service;
 
 import com.example.smrsservice.dto.common.ResponseDto;
+import com.example.smrsservice.dto.lecturer.LecturerResponse;
 import com.example.smrsservice.dto.major.MajorResponse;
+import com.example.smrsservice.entity.LecturerProfile;
 import com.example.smrsservice.entity.Major;
+import com.example.smrsservice.repository.LecturerProfileRepository;
 import com.example.smrsservice.repository.MajorRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,6 +19,7 @@ import java.util.stream.Collectors;
 public class MajorService {
 
     private final MajorRepository majorRepository;
+    private final LecturerProfileRepository lecturerProfileRepository;
 
     public ResponseDto<List<MajorResponse>> getAllActiveMajors() {
         try {
@@ -26,6 +30,39 @@ public class MajorService {
                     .collect(Collectors.toList());
 
             return ResponseDto.success(responses, "Get majors successfully");
+        } catch (Exception e) {
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * GET /api/majors/{majorId}/lecturers
+     * Lấy danh sách giảng viên theo khoa
+     */
+    public ResponseDto<List<LecturerResponse>> getLecturersByMajor(Integer majorId) {
+        try {
+            Major major = majorRepository.findById(Long.valueOf(majorId))
+                    .orElseThrow(() -> new RuntimeException("Major not found"));
+
+            List<LecturerProfile> profiles = lecturerProfileRepository.findByMajorId(majorId);
+
+            List<LecturerResponse> responses = profiles.stream()
+                    .filter(p -> p.getAccount() != null)
+                    .map(p -> LecturerResponse.builder()
+                            .id(p.getAccount().getId())
+                            .name(p.getAccount().getName())
+                            .email(p.getAccount().getEmail())
+                            .phone(p.getAccount().getPhone())
+                            .degree(p.getDegree())
+                            .yearsExperience(p.getYearsExperience())
+                            .majorId(major.getId())
+                            .majorName(major.getName())
+                            .build())
+                    .collect(Collectors.toList());
+
+            return ResponseDto.success(responses,
+                    "Found " + responses.size() + " lecturer(s) in " + major.getName());
+
         } catch (Exception e) {
             return ResponseDto.fail(e.getMessage());
         }

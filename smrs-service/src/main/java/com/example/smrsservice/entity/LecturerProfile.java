@@ -21,6 +21,10 @@ public class LecturerProfile {
     @JoinColumn(name = "account_id")
     private Account account;
 
+    @ManyToOne
+    @JoinColumn(name = "major_id")
+    private Major major;
+
     @Column(name = "teaching_major")
     private String teachingMajor;
 

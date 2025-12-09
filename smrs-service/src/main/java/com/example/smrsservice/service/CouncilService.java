@@ -29,6 +29,7 @@ public class CouncilService {
     private final AccountRepository accountRepository;
     private final ProjectRepository projectRepository;
     private final ProjectCouncilRepository projectCouncilRepository;
+    private final LecturerProfileRepository lecturerProfileRepository;
 
     /**
      * 1. Trưởng khoa tạo hội đồng

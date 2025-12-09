@@ -20,7 +20,7 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class CouncilManagerProfile {
+public class    CouncilManagerProfile {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
