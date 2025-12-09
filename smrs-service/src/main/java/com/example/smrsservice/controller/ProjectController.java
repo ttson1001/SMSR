@@ -36,8 +36,8 @@ public class ProjectController {
     public ResponseEntity<Page<ProjectResponse>> getAllProjects(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "id") String sortBy,
-            @RequestParam(defaultValue = "asc") String sortDir,
+            @RequestParam(defaultValue = "createDate") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir,       
             @RequestParam(required = false) String name,
             @RequestParam(required = false) ProjectStatus status,
             @RequestParam(required = false) Integer ownerId,
