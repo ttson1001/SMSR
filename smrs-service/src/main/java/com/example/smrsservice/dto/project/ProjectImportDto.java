@@ -13,13 +13,11 @@ import java.util.Date;
 @AllArgsConstructor
 public class ProjectImportDto {
 
+    private Integer id;
     private String name;
     private String description;
     private String type;
+    private String status;
     private Date dueDate;
     private String majorName;
-    private String status;
-
-    // Thông tin owner (optional - nếu không có thì dùng user hiện tại)
-    private String ownerEmail;
 }

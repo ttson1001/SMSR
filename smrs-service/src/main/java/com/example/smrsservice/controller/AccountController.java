@@ -51,8 +51,10 @@ public class AccountController {
     }
 
     @PostMapping("/create")
-    void createAccount(@RequestBody CreateAccountDto request) {
-        accountService.createAccount(request);
+    @Operation(summary = "Create new account")
+    public ResponseEntity<CreateResponseDto> createAccount(@RequestBody CreateAccountDto request) {
+        CreateResponseDto response = accountService.createAccount(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -99,11 +101,6 @@ public class AccountController {
         return ResponseEntity.ok(response);
     }
 
-    @DeleteMapping("/{id}")
-    void deleteAccountById(@PathVariable Integer id) {
-        accountService.deleteAccount(id);
-    }
-
     /**
      * ✅ FIXED: Update account không cần {id}, lấy từ token
      */
@@ -120,9 +117,10 @@ public class AccountController {
     }
 
     @PostMapping("/forgot-password")
+    @PreAuthorize("permitAll()")
+    @Operation(summary = "Forgot password - Send temporary password via email")
     public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest req) {
         accountService.forgotPasswordSimple(req);
-        // Luôn trả OK để không lộ email tồn tại hay không
         return ResponseEntity.ok(Map.of("message", "Nếu email tồn tại, mật khẩu tạm đã được gửi."));
     }
 

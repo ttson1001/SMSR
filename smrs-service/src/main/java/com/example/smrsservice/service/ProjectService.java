@@ -25,6 +25,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
@@ -879,7 +880,7 @@ public class ProjectService {
     }
 
     @Transactional
-    public ResponseDto<List<Project>> importProjectsFromExcel(MultipartFile file, Authentication authentication) {
+    public ResponseDto<List<ProjectImportDto>> importProjectsFromExcel(MultipartFile file, Authentication authentication) {
         List<Project> projects = new ArrayList<>();
 
         try (InputStream is = file.getInputStream(); Workbook workbook = new XSSFWorkbook(is)) {
@@ -888,6 +889,7 @@ public class ProjectService {
 
             Account currentUser = currentAccount(authentication);
 
+            // Parse header
             Map<String, Integer> headerMap = new HashMap<>();
             if (rows.hasNext()) {
                 Row headerRow = rows.next();
@@ -898,9 +900,10 @@ public class ProjectService {
             }
 
             if (!headerMap.containsKey("name")) {
-                throw new RuntimeException("Missing required column: name");
+                return ResponseDto.fail("Missing required column: name");
             }
 
+            // Parse data rows
             while (rows.hasNext()) {
                 Row row = rows.next();
 
@@ -922,51 +925,79 @@ public class ProjectService {
                 }
 
                 if (headerMap.containsKey("duedate")) {
-                    Cell dueDateCell = row.getCell(headerMap.get("duedate"));
-                    if (dueDateCell != null && dueDateCell.getCellType() == CellType.NUMERIC) {
-                        Date dueDate = dueDateCell.getDateCellValue();
-                        project.setDueDate(dueDate);
-                    } else {
-                        String dueDateStr = getCellValue(dueDateCell);
-                        if (!dueDateStr.isEmpty()) {
-                            try {
-                                LocalDateTime ldt = LocalDateTime.parse(dueDateStr + "T00:00:00");
-                                project.setDueDate(Date.from(ldt.atZone(ZoneId.systemDefault()).toInstant()));
-                            } catch (Exception e) {
-                                System.err.println("Invalid date format: " + dueDateStr);
-                            }
-                        }
-                    }
+                    project.setDueDate(parseDueDate(row.getCell(headerMap.get("duedate"))));
                 }
 
                 if (headerMap.containsKey("major")) {
                     String majorName = getCellValue(row.getCell(headerMap.get("major")));
                     if (!majorName.isEmpty()) {
-                        Optional<Major> majorOpt = majorRepository.findByName(majorName);
-                        majorOpt.ifPresent(project::setMajor);
+                        majorRepository.findByName(majorName).ifPresent(project::setMajor);
                     }
                 }
 
                 if (headerMap.containsKey("status")) {
-                    String statusStr = getCellValue(row.getCell(headerMap.get("status"))).toUpperCase();
-                    try {
-                        ProjectStatus status = ProjectStatus.valueOf(statusStr);
-                        project.setStatus(status);
-                    } catch (Exception e) {
-                        project.setStatus(ProjectStatus.PENDING);
-                    }
+                    project.setStatus(parseStatus(row.getCell(headerMap.get("status"))));
                 }
 
                 projects.add(project);
             }
 
+            if (projects.isEmpty()) {
+                return ResponseDto.fail("No valid projects found in file");
+            }
+
             projectRepository.saveAll(projects);
 
-            return ResponseDto.success(projects, "Imported " + projects.size() + " projects successfully");
+            // Convert to DTO
+            List<ProjectImportDto> result = projects.stream()
+                    .map(this::toImportDto)
+                    .toList();
+
+            return ResponseDto.success(result, "Imported " + result.size() + " projects successfully");
 
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseDto.fail("Lỗi khi đọc file Excel: " + e.getMessage());
+        }
+    }
+
+    private ProjectImportDto toImportDto(Project p) {
+        return ProjectImportDto.builder()
+                .id(p.getId())
+                .name(p.getName())
+                .description(p.getDescription())
+                .type(p.getType())
+                .status(p.getStatus().name())
+                .dueDate(p.getDueDate())
+                .majorName(p.getMajor() != null ? p.getMajor().getName() : null)
+                .build();
+    }
+
+    private Date parseDueDate(Cell cell) {
+        if (cell == null) return null;
+
+        if (cell.getCellType() == CellType.NUMERIC) {
+            return cell.getDateCellValue();
+        }
+
+        String dueDateStr = getCellValue(cell);
+        if (dueDateStr.isEmpty()) return null;
+
+        try {
+            LocalDate date = LocalDate.parse(dueDateStr);
+            return Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant());
+        } catch (Exception e) {
+            System.err.println("Invalid date format: " + dueDateStr);
+            return null;
+        }
+    }
+
+    private ProjectStatus parseStatus(Cell cell) {
+        String statusStr = getCellValue(cell).toUpperCase();
+        try {
+            return ProjectStatus.valueOf(statusStr);
+        } catch (Exception e) {
+            return ProjectStatus.PENDING;
         }
     }
 

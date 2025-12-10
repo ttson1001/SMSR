@@ -25,6 +25,9 @@ public class Account {
     private String name;
     private Integer age;
 
+    private String gender;
+    private String address;
+
     @Column(name = "create_date")
     private Date createDate = new Date();
 

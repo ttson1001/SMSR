@@ -51,6 +51,7 @@ public class AccountService {
     private  final CouncilManagerProfileRepository councilProfileRepository;
     private final MajorRepository majorRepository;
 
+
     public Account getAccountByEmail(String email) {
         return accountRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Account not found with email: " + email));
@@ -231,29 +232,68 @@ public class AccountService {
 
         List<Account> accountList = accounts.getContent();
 
+        // ========== MAP TO RESPONSE VỚI MAJOR INFO CHO DEAN ==========
+        List<AccountDetailResponse> responseList = accountList.stream()
+                .map(account -> {
+                    // Build basic account info
+                    AccountDetailResponse.AccountDetailResponseBuilder builder = AccountDetailResponse.builder()
+                            .id(account.getId())
+                            .email(account.getEmail())
+                            .avatar(account.getAvatar())
+                            .phone(account.getPhone())
+                            .name(account.getName())
+                            .age(account.getAge())
+                            .status(account.getStatus() != null ? account.getStatus().name() : null)
+                            .locked(account.getStatus() != null && account.getStatus() == AccountStatus.LOCKED);
+
+                    // Role info - ⭐ SỬA: Dùng nested RoleInfo
+                    if (account.getRole() != null) {
+                        builder.role(AccountDetailResponse.RoleInfo.builder()
+                                .id(account.getRole().getId())
+                                .roleName(account.getRole().getRoleName())
+                                .build());
+                    }
+
+                    // ========== ⭐ THÊM MAJOR INFO CHO DEAN ==========
+                    if (account.getRole() != null && "DEAN".equalsIgnoreCase(account.getRole().getRoleName())) {
+                        Optional<CouncilManagerProfile> profileOpt = councilProfileRepository
+                                .findByAccountId(account.getId());
+
+                        if (profileOpt.isPresent()) {
+                            CouncilManagerProfile profile = profileOpt.get();
+
+                            // Set major info
+                            if (profile.getMajor() != null) {
+                                builder.major(AccountDetailResponse.MajorInfo.builder()
+                                        .id(profile.getMajor().getId().intValue())
+                                        .name(profile.getMajor().getName())
+                                        .code(profile.getMajor().getCode())
+                                        .description(profile.getMajor().getDescription())
+                                        .build());
+                            }
+
+                            // Set council manager profile info
+                            builder.councilManagerProfile(AccountDetailResponse.CouncilManagerInfo.builder()
+                                    .profileId(profile.getId())
+                                    .employeeCode(profile.getEmployeeCode())
+                                    .positionTitle(profile.getPositionTitle())
+                                    .department(profile.getDepartment())
+                                    .status(profile.getStatus() != null ? profile.getStatus().name() : null)
+                                    .build());
+                        }
+                    }
+
+                    return builder.build();
+                })
+                .toList();
+
         return PageResponse.<AccountDetailResponse>builder()
                 .currentPages(page)
                 .pageSizes(pageable.getPageSize())
                 .totalPages(accounts.getTotalPages())
                 .totalElements(accounts.getTotalElements())
-                .data(accountList.stream().map(account -> AccountDetailResponse.builder()
-                        .id(account.getId())
-                        .email(account.getEmail())
-                        .avatar(account.getAvatar())
-                        .phone(account.getPhone())
-                        .name(account.getName())
-                        .age(account.getAge())
-                        .status(account.getStatus() != null ? account.getStatus().name() : null)
-                        .role(account.getRole())
-                        .locked(account.getStatus() != null && account.getStatus() == AccountStatus.LOCKED)
-                        .build()).toList())
+                .data(responseList)
                 .build();
-    }
-    public void deleteAccount(Integer id) {
-        Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Khoong tìm thấy tài khoản"));
-
-        accountRepository.deleteById(account.getId());
     }
 
     /**
@@ -293,7 +333,10 @@ public class AccountService {
                     .avatar(account.getAvatar())
                     .age(account.getAge())
                     .status(account.getStatus() != null ? account.getStatus().name() : null)
-                    .role(account.getRole())
+                    .role(AccountDetailResponse.RoleInfo.builder()
+                            .id(account.getRole().getId())
+                            .roleName(account.getRole().getRoleName())
+                            .build())
                     .locked(account.getStatus() != null && account.getStatus() == AccountStatus.LOCKED)
                     .build();
 
@@ -307,16 +350,48 @@ public class AccountService {
     public ResponseDto<AccountDto> getMe(Authentication authentication) {
         try {
             Account account = currentAccount(authentication);
-            AccountDto dto = AccountDto.builder()
-                    .id(Long.valueOf(account.getId()))
+
+            // Build basic account info
+            AccountDto.AccountDtoBuilder builder = AccountDto.builder()
+                    .id(account.getId())
                     .name(account.getName())
                     .email(account.getEmail())
                     .phone(account.getPhone())
                     .avatar(account.getAvatar())
-                    .role(account.getRole() != null ? account.getRole().getRoleName() : null)
                     .age(account.getAge())
-                    .build();
-            return ResponseDto.success(dto, "OK");
+                    .role(account.getRole() != null ? account.getRole().getRoleName() : null);
+
+            // ========== ⭐ THÊM MAJOR INFO CHO DEAN ==========
+            if (account.getRole() != null && "DEAN".equalsIgnoreCase(account.getRole().getRoleName())) {
+                Optional<CouncilManagerProfile> profileOpt = councilProfileRepository
+                        .findByAccountId(account.getId());
+
+                if (profileOpt.isPresent()) {
+                    CouncilManagerProfile profile = profileOpt.get();
+
+                    // Set major info
+                    if (profile.getMajor() != null) {
+                        builder.major(AccountDto.MajorInfo.builder()
+                                .id(profile.getMajor().getId().intValue())
+                                .name(profile.getMajor().getName())
+                                .code(profile.getMajor().getCode())
+                                .description(profile.getMajor().getDescription())
+                                .build());
+                    }
+
+                    // Set council manager profile info
+                    builder.councilManagerProfile(AccountDto.CouncilManagerInfo.builder()
+                            .profileId(profile.getId())
+                            .employeeCode(profile.getEmployeeCode())
+                            .positionTitle(profile.getPositionTitle())
+                            .department(profile.getDepartment())
+                            .status(profile.getStatus() != null ? profile.getStatus().name() : null)
+                            .build());
+                }
+            }
+
+            return ResponseDto.success(builder.build(), "OK");
+
         } catch (Exception e) {
             return ResponseDto.fail(e.getMessage());
         }
@@ -547,6 +622,9 @@ public class AccountService {
             List<String> failedEmails = new ArrayList<>();
             List<String> errors = new ArrayList<>();
 
+            // ⭐ THÊM: List chứa dean details
+            List<ImportDeanResult.DeanDetail> successDeans = new ArrayList<>();
+
             Role deanRole = roleRepository.findByRoleName("DEAN")
                     .orElseThrow(() -> new RuntimeException("DEAN role not found"));
 
@@ -557,6 +635,10 @@ public class AccountService {
                 if (email == null || email.isBlank()) continue;
 
                 try {
+                    // ⭐ THÊM: Biến track password generation
+                    String generatedPassword = null;
+                    boolean passwordGenerated = false;
+
                     // ========== 1. TẠO/UPDATE ACCOUNT ==========
                     Account account = accountRepository.findByEmail(email)
                             .orElse(new Account());
@@ -586,14 +668,16 @@ public class AccountService {
                             account.setPassword(passwordEncoder.encode(password));
                         } else if (isNew) {
                             // Generate temp password for new accounts
-                            String tempPassword = generateTempPassword(12);
-                            account.setPassword(passwordEncoder.encode(tempPassword));
-                            System.out.println("Generated temp password for " + email + ": " + tempPassword);
+                            generatedPassword = generateTempPassword(12);
+                            account.setPassword(passwordEncoder.encode(generatedPassword));
+                            passwordGenerated = true;
+                            System.out.println("Generated temp password for " + email + ": " + generatedPassword);
                         }
                     } else if (isNew) {
-                        String tempPassword = generateTempPassword(12);
-                        account.setPassword(passwordEncoder.encode(tempPassword));
-                        System.out.println("Generated temp password for " + email + ": " + tempPassword);
+                        generatedPassword = generateTempPassword(12);
+                        account.setPassword(passwordEncoder.encode(generatedPassword));
+                        passwordGenerated = true;
+                        System.out.println("Generated temp password for " + email + ": " + generatedPassword);
                     }
 
                     // Phone (optional)
@@ -661,6 +745,36 @@ public class AccountService {
 
                     councilProfileRepository.save(profile);
 
+                    // ========== ⭐ BUILD DEAN DETAIL ==========
+                    ImportDeanResult.DeanDetail deanDetail = ImportDeanResult.DeanDetail.builder()
+                            // Account info
+                            .accountId(account.getId())
+                            .email(account.getEmail())
+                            .name(account.getName())
+                            .phone(account.getPhone())
+                            .age(account.getAge())
+                            .status(account.getStatus().toString())
+                            .role(account.getRole().getRoleName())
+
+                            // Profile info
+                            .profileId(profile.getId())
+                            .employeeCode(profile.getEmployeeCode())
+                            .positionTitle(profile.getPositionTitle())
+                            .department(profile.getDepartment())
+
+                            // Major info
+                            .majorId(major.getId().intValue())
+                            .majorName(major.getName())
+                            .majorCode(major.getCode())
+
+                            // Auto-generated info
+                            .isNewAccount(isNew)
+                            .passwordGenerated(passwordGenerated)
+                            .generatedPassword(passwordGenerated ? generatedPassword : null)
+
+                            .build();
+
+                    successDeans.add(deanDetail);
                     successEmails.add(email);
                     System.out.println("✅ Imported dean: " + email + " (Major: " + major.getName() + ")");
 
@@ -679,6 +793,7 @@ public class AccountService {
                     .successEmails(successEmails)
                     .failedEmails(failedEmails)
                     .errors(errors)
+                    .successDeans(successDeans)  // ⭐ THÊM
                     .build();
 
             String message = String.format(

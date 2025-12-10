@@ -110,14 +110,11 @@ public class ProjectController {
     }
 
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ResponseDto<List<Project>>> importProjectsFromExcel(
+    public ResponseEntity<ResponseDto<List<ProjectImportDto>>> importProjectsFromExcel(
             @RequestParam("file") MultipartFile file,
-            Authentication authentication
-    ) {
-        ResponseDto<List<Project>> response = projectService.importProjectsFromExcel(file, authentication);
-        return ResponseEntity.status(
-                response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST
-        ).body(response);
+            Authentication authentication) {
+        ResponseDto<List<ProjectImportDto>> response = projectService.importProjectsFromExcel(file, authentication);
+        return ResponseEntity.status(response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST).body(response);
     }
 
     // ==================== NEW ENDPOINTS ====================
