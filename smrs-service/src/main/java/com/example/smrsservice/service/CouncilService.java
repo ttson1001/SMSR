@@ -2,6 +2,7 @@ package com.example.smrsservice.service;
 
 import com.example.smrsservice.common.DecisionStatus;
 import com.example.smrsservice.common.ProjectStatus;
+import com.example.smrsservice.dto.account.PageResponse;
 import com.example.smrsservice.dto.common.ResponseDto;
 import com.example.smrsservice.dto.concil.CouncilResponse;
 import com.example.smrsservice.dto.concil.CreateCouncilRequest;
@@ -9,7 +10,12 @@ import com.example.smrsservice.dto.concil.DeanDecisionRequest;
 import com.example.smrsservice.dto.concil.ProjectCouncilDto;
 import com.example.smrsservice.entity.*;
 import com.example.smrsservice.repository.*;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -697,5 +703,107 @@ public class CouncilService {
             e.printStackTrace();
             return ResponseDto.fail(e.getMessage());
         }
+    }
+
+    /**
+     * GET ALL COUNCILS - For ADMIN only
+     */
+    public ResponseDto<PageResponse<CouncilResponse>> getAllCouncils(
+            int page,
+            int size,
+            String name,
+            String status,
+            Integer deanId,
+            Authentication authentication) {
+        try {
+            // Check ADMIN role
+            Account currentUser = getCurrentAccount(authentication);
+            if (!"ADMIN".equalsIgnoreCase(currentUser.getRole().getRoleName())) {
+                return ResponseDto.fail("Only admins can access all councils");
+            }
+
+            Pageable pageable = PageRequest.of(page - 1, size);
+
+            // Build specification
+            Specification<Council> spec = buildCouncilSpecification(name, status, deanId);
+
+            Page<Council> councilPage = councilRepository.findAll(spec, pageable);
+
+            // Map to response
+            List<CouncilResponse> responseList = councilPage.getContent().stream()
+                    .map(council -> {
+                        CouncilResponse response = buildCouncilResponse(council);
+
+                        // CHỈ CẦN: Total projects
+                        List<ProjectCouncil> projectCouncils = projectCouncilRepository.findByCouncilId(council.getId());
+                        response.setTotalProjects(projectCouncils.size());
+
+                        return response;
+                    })
+                    .collect(Collectors.toList());
+
+            PageResponse<CouncilResponse> pageResponse = PageResponse.<CouncilResponse>builder()
+                    .currentPages(page)
+                    .pageSizes(pageable.getPageSize())
+                    .totalPages(councilPage.getTotalPages())
+                    .totalElements((int) councilPage.getTotalElements())
+                    .data(responseList)
+                    .build();
+
+            return ResponseDto.success(pageResponse,
+                    "Found " + councilPage.getTotalElements() + " council(s)");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * Build specification for council filtering
+     */
+    private Specification<Council> buildCouncilSpecification(
+            String name,
+            String status,
+            Integer deanId) {
+
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            // Filter by name (search both councilName and councilCode)
+            if (name != null && !name.isBlank()) {
+                predicates.add(
+                        criteriaBuilder.or(
+                                criteriaBuilder.like(
+                                        criteriaBuilder.lower(root.get("councilName")),
+                                        "%" + name.toLowerCase().trim() + "%"
+                                ),
+                                criteriaBuilder.like(
+                                        criteriaBuilder.lower(root.get("councilCode")),
+                                        "%" + name.toLowerCase().trim() + "%"
+                                )
+                        )
+                );
+            }
+
+            // Filter by status
+            if (status != null && !status.isBlank()) {
+                predicates.add(
+                        criteriaBuilder.equal(
+                                criteriaBuilder.upper(root.get("status")),
+                                status.toUpperCase()
+                        )
+                );
+            }
+
+            // Filter by dean ID
+            if (deanId != null) {
+                predicates.add(
+                        criteriaBuilder.equal(root.get("dean").get("id"), deanId)
+                );
+            }
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
     }
 }

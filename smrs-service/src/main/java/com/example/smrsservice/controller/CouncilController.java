@@ -1,11 +1,14 @@
 package com.example.smrsservice.controller;
 
+import com.example.smrsservice.dto.account.PageResponse;
 import com.example.smrsservice.dto.common.ResponseDto;
 import com.example.smrsservice.dto.concil.CouncilResponse;
 import com.example.smrsservice.dto.concil.CreateCouncilRequest;
 import com.example.smrsservice.dto.concil.DeanDecisionRequest;
 import com.example.smrsservice.dto.concil.ProjectCouncilDto;
 import com.example.smrsservice.service.CouncilService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -161,6 +164,39 @@ public class CouncilController {
         return ResponseEntity.status(
                 response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST
         ).body(response);
+    }
+
+
+    @GetMapping("/all")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Get all councils with pagination and filters (Admin only)")
+    public ResponseEntity<ResponseDto<PageResponse<CouncilResponse>>> getAllCouncils(
+            @Parameter(description = "Page number (1-indexed)")
+            @RequestParam(defaultValue = "1") int page,
+
+            @Parameter(description = "Page size")
+            @RequestParam(defaultValue = "10") int size,
+
+            @Parameter(description = "Filter by council name or code (partial match)")
+            @RequestParam(required = false) String name,
+
+            @Parameter(description = "Filter by status (ACTIVE, INACTIVE)")
+            @RequestParam(required = false) String status,
+
+            @Parameter(description = "Filter by dean ID")
+            @RequestParam(required = false) Integer deanId,
+
+            Authentication authentication) {
+
+        ResponseDto<PageResponse<CouncilResponse>> response = councilService.getAllCouncils(
+                page, size, name, status, deanId, authentication
+        );
+
+        if (response.isSuccess()) {
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.badRequest().body(response);
+        }
     }
 
 }

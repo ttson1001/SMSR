@@ -26,6 +26,7 @@ public class CouncilResponse {
     private String deanEmail;
 
     private List<MemberInfo> members;
+    private Integer totalProjects;
 
 
     @Data
