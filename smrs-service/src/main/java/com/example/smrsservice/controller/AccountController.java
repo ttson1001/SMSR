@@ -132,4 +132,43 @@ public class AccountController {
         accountService.changePassword(req, auth);
         return ResponseEntity.ok(Map.of("message", "Đổi mật khẩu thành công"));
     }
+
+    @PostMapping("/import-deans")
+    public ResponseEntity<ResponseDto<ImportDeanResult>> importDeans(
+            @RequestParam("file") MultipartFile file,
+            Authentication authentication) {
+
+        // Check role ADMIN
+        Account currentUser = getCurrentAccount(authentication);
+        if (!"ADMIN".equalsIgnoreCase(currentUser.getRole().getRoleName())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ResponseDto.fail("Only admins can import deans"));
+        }
+
+        ResponseDto<ImportDeanResult> response = accountService.importDeansFromExcel(file);
+
+        return ResponseEntity.status(
+                response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST
+        ).body(response);
+    }
+
+
+    private Account getCurrentAccount(Authentication authentication) {
+        if (authentication == null) {
+            throw new RuntimeException("User not authenticated");
+        }
+
+        Object principal = authentication.getPrincipal();
+
+        if (principal instanceof Account) {
+            return (Account) principal;
+        }
+
+        if (principal instanceof String) {
+            String email = (String) principal;
+            return accountService.getAccountByEmail(email);  // ✅ GỌI SERVICE
+        }
+
+        throw new RuntimeException("Invalid authentication principal");
+    }
 }

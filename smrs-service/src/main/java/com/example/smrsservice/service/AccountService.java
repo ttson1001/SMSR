@@ -1,14 +1,19 @@
 package com.example.smrsservice.service;
 
 import com.example.smrsservice.common.AccountStatus;
+import com.example.smrsservice.common.CouncilManagerStatus;
 import com.example.smrsservice.config.PasswordEncoderConfig;
 import com.example.smrsservice.dto.account.*;
 import com.example.smrsservice.dto.auth.LoginRequest;
 import com.example.smrsservice.dto.auth.LoginResponseDto;
 import com.example.smrsservice.dto.common.ResponseDto;
 import com.example.smrsservice.entity.Account;
+import com.example.smrsservice.entity.CouncilManagerProfile;
+import com.example.smrsservice.entity.Major;
 import com.example.smrsservice.entity.Role;
 import com.example.smrsservice.repository.AccountRepository;
+import com.example.smrsservice.repository.CouncilManagerProfileRepository;
+import com.example.smrsservice.repository.MajorRepository;
 import com.example.smrsservice.repository.RoleRepository;
 import com.example.smrsservice.security.JwtTokenUtil;
 import jakarta.persistence.criteria.Predicate;
@@ -29,6 +34,7 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.security.auth.login.AccountNotFoundException;
 import java.io.InputStream;
 import java.security.SecureRandom;
+import java.time.LocalDate;
 import java.util.*;
 
 @Service
@@ -42,6 +48,13 @@ public class AccountService {
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final PasswordEncoderConfig passwordEncoderConfig;
     private final MailService mailService;
+    private  final CouncilManagerProfileRepository councilProfileRepository;
+    private final MajorRepository majorRepository;
+
+    public Account getAccountByEmail(String email) {
+        return accountRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Account not found with email: " + email));
+    }
 
     public ResponseDto<LoginResponseDto> login(LoginRequest request) {
         var acc = accountRepository.findByEmail(request.getEmail())
@@ -502,6 +515,183 @@ public class AccountService {
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
+    }
+
+    public ResponseDto<ImportDeanResult> importDeansFromExcel(MultipartFile file) {
+        try (InputStream is = file.getInputStream();
+             Workbook workbook = new XSSFWorkbook(is)) {
+
+            Sheet sheet = workbook.getSheetAt(0);
+            Iterator<Row> rows = sheet.iterator();
+
+            // ========== ĐỌC HEADER ==========
+            Map<String, Integer> headerMap = new HashMap<>();
+            if (rows.hasNext()) {
+                Row headerRow = rows.next();
+                for (Cell cell : headerRow) {
+                    String columnName = cell.getStringCellValue().trim().toLowerCase();
+                    headerMap.put(columnName, cell.getColumnIndex());
+                }
+            }
+
+            // ========== VALIDATE REQUIRED COLUMNS ==========
+            List<String> requiredColumns = List.of("email", "name", "majorid");
+            for (String col : requiredColumns) {
+                if (!headerMap.containsKey(col)) {
+                    return ResponseDto.fail("Missing required column: " + col);
+                }
+            }
+
+            // ========== ĐỌC DATA ==========
+            List<String> successEmails = new ArrayList<>();
+            List<String> failedEmails = new ArrayList<>();
+            List<String> errors = new ArrayList<>();
+
+            Role deanRole = roleRepository.findByRoleName("DEAN")
+                    .orElseThrow(() -> new RuntimeException("DEAN role not found"));
+
+            while (rows.hasNext()) {
+                Row row = rows.next();
+                String email = getCellValue(row.getCell(headerMap.get("email")));
+
+                if (email == null || email.isBlank()) continue;
+
+                try {
+                    // ========== 1. TẠO/UPDATE ACCOUNT ==========
+                    Account account = accountRepository.findByEmail(email)
+                            .orElse(new Account());
+
+                    boolean isNew = (account.getId() == null);
+
+                    if (isNew) {
+                        account.setEmail(email);
+                        account.setCreateDate(new Date());
+                        account.setRole(deanRole);
+                        account.setStatus(AccountStatus.ACTIVE);
+                    }
+
+                    // Name (required)
+                    String name = getCellValue(row.getCell(headerMap.get("name")));
+                    if (name == null || name.isBlank()) {
+                        failedEmails.add(email);
+                        errors.add(email + ": Missing name");
+                        continue;
+                    }
+                    account.setName(name);
+
+                    // Password (optional, generate if not provided)
+                    if (headerMap.containsKey("password")) {
+                        String password = getCellValue(row.getCell(headerMap.get("password")));
+                        if (password != null && !password.isBlank()) {
+                            account.setPassword(passwordEncoder.encode(password));
+                        } else if (isNew) {
+                            // Generate temp password for new accounts
+                            String tempPassword = generateTempPassword(12);
+                            account.setPassword(passwordEncoder.encode(tempPassword));
+                            System.out.println("Generated temp password for " + email + ": " + tempPassword);
+                        }
+                    } else if (isNew) {
+                        String tempPassword = generateTempPassword(12);
+                        account.setPassword(passwordEncoder.encode(tempPassword));
+                        System.out.println("Generated temp password for " + email + ": " + tempPassword);
+                    }
+
+                    // Phone (optional)
+                    if (headerMap.containsKey("phone")) {
+                        account.setPhone(getCellValue(row.getCell(headerMap.get("phone"))));
+                    }
+
+                    // Age (optional)
+                    if (headerMap.containsKey("age")) {
+                        String ageStr = getCellValue(row.getCell(headerMap.get("age")));
+                        if (!ageStr.isEmpty()) {
+                            account.setAge(Integer.parseInt(ageStr));
+                        }
+                    }
+
+                    accountRepository.save(account);
+
+                    // ========== 2. TẠO/UPDATE COUNCIL MANAGER PROFILE ==========
+                    CouncilManagerProfile profile = councilProfileRepository
+                            .findByAccountId(account.getId())
+                            .orElse(new CouncilManagerProfile());
+
+                    if (profile.getId() == null) {
+                        profile.setAccount(account);
+                        profile.setStatus(CouncilManagerStatus.ACTIVE);
+                        profile.setStartDate(LocalDate.now());
+                    }
+
+                    // Major ID (required)
+                    String majorIdStr = getCellValue(row.getCell(headerMap.get("majorid")));
+                    if (majorIdStr == null || majorIdStr.isBlank()) {
+                        failedEmails.add(email);
+                        errors.add(email + ": Missing majorId");
+                        continue;
+                    }
+
+                    Integer majorId = Integer.parseInt(majorIdStr);
+                    Major major = majorRepository.findById(Long.valueOf(majorId))
+                            .orElseThrow(() -> new RuntimeException("Major not found: " + majorId));
+
+                    profile.setMajor(major);
+
+                    // Department (optional, default to major name)
+                    if (headerMap.containsKey("department")) {
+                        String dept = getCellValue(row.getCell(headerMap.get("department")));
+                        profile.setDepartment(dept != null && !dept.isBlank() ? dept : major.getName());
+                    } else {
+                        profile.setDepartment(major.getName());
+                    }
+
+                    // Employee Code (optional)
+                    if (headerMap.containsKey("employeecode")) {
+                        profile.setEmployeeCode(getCellValue(row.getCell(headerMap.get("employeecode"))));
+                    }
+
+                    // Position Title (optional)
+                    if (headerMap.containsKey("positiontitle")) {
+                        String position = getCellValue(row.getCell(headerMap.get("positiontitle")));
+                        profile.setPositionTitle(position != null && !position.isBlank()
+                                ? position
+                                : "Trưởng bộ môn " + major.getName());
+                    } else {
+                        profile.setPositionTitle("Trưởng bộ môn " + major.getName());
+                    }
+
+                    councilProfileRepository.save(profile);
+
+                    successEmails.add(email);
+                    System.out.println("✅ Imported dean: " + email + " (Major: " + major.getName() + ")");
+
+                } catch (Exception e) {
+                    failedEmails.add(email);
+                    errors.add(email + ": " + e.getMessage());
+                    System.err.println("❌ Failed to import " + email + ": " + e.getMessage());
+                }
+            }
+
+            // ========== BUILD RESPONSE ==========
+            ImportDeanResult result = ImportDeanResult.builder()
+                    .totalRows(successEmails.size() + failedEmails.size())
+                    .successCount(successEmails.size())
+                    .failedCount(failedEmails.size())
+                    .successEmails(successEmails)
+                    .failedEmails(failedEmails)
+                    .errors(errors)
+                    .build();
+
+            String message = String.format(
+                    "Import completed: %d success, %d failed",
+                    successEmails.size(), failedEmails.size()
+            );
+
+            return ResponseDto.success(result, message);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseDto.fail("Error reading Excel file: " + e.getMessage());
+        }
     }
 
 }
