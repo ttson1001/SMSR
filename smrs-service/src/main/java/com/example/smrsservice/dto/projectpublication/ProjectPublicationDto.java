@@ -10,8 +10,9 @@ import java.util.Date;
 @Data
 @Builder
 @NoArgsConstructor
-@AllArgsConstructor  // ⭐ THÊM
+@AllArgsConstructor
 public class ProjectPublicationDto {
+
     // Publication info
     private Integer id;
     private String status;
@@ -26,17 +27,16 @@ public class ProjectPublicationDto {
     private Date createdAt;
     private Date updatedAt;
 
-    // ⭐ FULL PROJECT INFO
+    // Full project info
     private ProjectInfo project;
 
-    // ⭐ FULL AUTHOR INFO
+    // Full author info
     private AuthorInfo author;
 
-    // Nested DTO: ProjectInfo
     @Data
     @Builder
     @NoArgsConstructor
-    @AllArgsConstructor  // ⭐ THÊM
+    @AllArgsConstructor
     public static class ProjectInfo {
         private Integer projectId;
         private String projectName;
@@ -44,24 +44,23 @@ public class ProjectPublicationDto {
         private String projectType;
         private String projectStatus;
         private Date projectDueDate;
-        private Date projectCreateDate;  // ⭐ THÊM field này nếu thiếu
+        private Date projectCreateDate;
 
         // Owner
         private Integer ownerId;
         private String ownerName;
         private String ownerEmail;
-        private String ownerRole;  // ⭐ THÊM field này nếu thiếu
+        private String ownerRole;
 
         // Major
         private Integer majorId;
         private String majorName;
     }
 
-    // Nested DTO: AuthorInfo
     @Data
     @Builder
     @NoArgsConstructor
-    @AllArgsConstructor  // ⭐ THÊM
+    @AllArgsConstructor
     public static class AuthorInfo {
         private Integer authorId;
         private String authorName;

@@ -30,6 +30,11 @@ public class    CouncilManagerProfile {
     @JoinColumn(name = "account_id", nullable = false, unique = true)
     private Account account;
 
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "major_id", referencedColumnName = "id")
+    private Major major;
+
     @Column(name = "employee_code", length = 50, unique = true)
     private String employeeCode;
 
@@ -49,7 +54,6 @@ public class    CouncilManagerProfile {
     @Column(name = "end_date")
     private LocalDate endDate;
 
-    // ✅ THÊM CÁC TIMESTAMP
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;

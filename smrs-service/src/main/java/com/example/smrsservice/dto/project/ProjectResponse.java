@@ -7,7 +7,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
-import java.util.Date;
 import java.util.List;
 
 @Data
@@ -36,6 +35,7 @@ public class ProjectResponse {
 
     private MentorInfo mentor;
     private List<StudentInfo> students;
+    private Boolean hasFinalReport;
 
     @Data
     @Builder

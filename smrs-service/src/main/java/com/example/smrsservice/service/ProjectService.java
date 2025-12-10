@@ -450,7 +450,7 @@ public class ProjectService {
                         .build())
                 .collect(Collectors.toList());
 
-        // ========== Build files & images như cũ ==========
+        // ========== Build files & images ==========
         List<ProjectResponse.FileInfo> files = (p.getFiles() != null)
                 ? p.getFiles().stream()
                 .map(f -> ProjectResponse.FileInfo.builder()
@@ -476,7 +476,12 @@ public class ProjectService {
                 ? p.getCreateDate().toInstant()
                 : null;
 
-        // ========== Return với mentor & students ==========
+        // ========== ⭐ CHECK HAS FINAL REPORT ==========
+        boolean hasFinalReport = milestoneRepository
+                .findByProjectIdAndIsFinal(p.getId(), true)
+                .isPresent();
+
+        // ========== Return với mentor, students & hasFinalReport ==========
         return ProjectResponse.builder()
                 .id(p.getId())
                 .name(p.getName())
@@ -499,9 +504,10 @@ public class ProjectService {
                 .files(files)
                 .images(images)
 
-
                 .mentor(mentor)
                 .students(students)
+
+                .hasFinalReport(hasFinalReport)  // ⭐ THÊM FIELD NÀY
 
                 .build();
     }

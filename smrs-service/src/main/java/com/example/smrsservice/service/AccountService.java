@@ -110,7 +110,8 @@ public class AccountService {
     public List<Account> importAccountsFromExcel(MultipartFile file) {
         List<Account> accounts = new ArrayList<>();
 
-        try (InputStream is = file.getInputStream(); Workbook workbook = new XSSFWorkbook(is)) {
+        try (InputStream is = file.getInputStream();
+             Workbook workbook = new XSSFWorkbook(is)) {
             Sheet sheet = workbook.getSheetAt(0);
             Iterator<Row> rows = sheet.iterator();
 
