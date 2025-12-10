@@ -133,23 +133,37 @@ public class AccountController {
         return ResponseEntity.ok(Map.of("message", "Đổi mật khẩu thành công"));
     }
 
-    @PostMapping("/import-deans")
-    public ResponseEntity<ResponseDto<ImportDeanResult>> importDeans(
-            @RequestParam("file") MultipartFile file,
+    @PostMapping(value = "/import-deans", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> importDeans(
+            @Parameter(description = "File Excel chứa danh sách dean", required = true)
+            @RequestPart("file") MultipartFile file,
             Authentication authentication) {
 
-        // Check role ADMIN
+        // Check ADMIN
         Account currentUser = getCurrentAccount(authentication);
-        if (!"ADMIN".equalsIgnoreCase(currentUser.getRole().getRoleName())) {
+        if (currentUser.getRole() == null ||
+                !"ADMIN".equalsIgnoreCase(currentUser.getRole().getRoleName())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ResponseDto.fail("Only admins can import deans"));
+                    .body(Map.of("message", "Only admins can import deans"));
         }
 
-        ResponseDto<ImportDeanResult> response = accountService.importDeansFromExcel(file);
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body("File không được để trống!");
+        }
 
-        return ResponseEntity.status(
-                response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST
-        ).body(response);
+        try {
+            ResponseDto<ImportDeanResult> response = accountService.importDeansFromExcel(file);
+
+            if (response.isSuccess()) {
+                return ResponseEntity.ok(response);
+            } else {
+                return ResponseEntity.badRequest().body(response);
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Lỗi khi import file: " + e.getMessage());
+        }
     }
 
 
