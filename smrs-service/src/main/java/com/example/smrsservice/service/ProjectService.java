@@ -880,14 +880,24 @@ public class ProjectService {
     }
 
     @Transactional
-    public ResponseDto<List<ProjectImportDto>> importProjectsFromExcel(MultipartFile file, Authentication authentication) {
+    public ResponseDto<List<ProjectImportDto>> importProjectsFromExcel(
+            MultipartFile file, Authentication authentication) {
         List<Project> projects = new ArrayList<>();
 
-        try (InputStream is = file.getInputStream(); Workbook workbook = new XSSFWorkbook(is)) {
+        try (InputStream is = file.getInputStream();
+             Workbook workbook = new XSSFWorkbook(is)) {
+
             Sheet sheet = workbook.getSheetAt(0);
             Iterator<Row> rows = sheet.iterator();
 
             Account currentUser = currentAccount(authentication);
+
+            // ⭐ CHECK ROLE: ADMIN/DEAN vs STUDENT/LECTURER
+            String roleName = currentUser.getRole() != null
+                    ? currentUser.getRole().getRoleName()
+                    : "";
+            boolean isAdminOrDean = "ADMIN".equalsIgnoreCase(roleName)
+                    || "DEAN".equalsIgnoreCase(roleName);
 
             // Parse header
             Map<String, Integer> headerMap = new HashMap<>();
@@ -912,10 +922,29 @@ public class ProjectService {
 
                 Project project = new Project();
                 project.setName(name);
-                project.setOwner(currentUser);
-                project.setStatus(ProjectStatus.PENDING);
                 project.setCreateDate(new Date());
 
+                // ⭐⭐⭐ LOGIC MỚI: ADMIN/DEAN vs STUDENT/LECTURER ⭐⭐⭐
+                if (isAdminOrDean) {
+                    // ========== ADMIN/DEAN IMPORT ==========
+                    // → owner = NULL (chưa có người nhận)
+                    // → status = ARCHIVED (để STUDENT pick)
+                    project.setOwner(null);
+                    project.setStatus(ProjectStatus.ARCHIVED);
+
+                    System.out.println("✅ ADMIN/DEAN imported project: " + name + " (ARCHIVED, no owner)");
+
+                } else {
+                    // ========== STUDENT/LECTURER IMPORT ==========
+                    // → owner = currentUser (họ là owner)
+                    // → status = PENDING (bình thường)
+                    project.setOwner(currentUser);
+                    project.setStatus(ProjectStatus.PENDING);
+
+                    System.out.println("✅ " + roleName + " imported project: " + name + " (PENDING, owner: " + currentUser.getEmail() + ")");
+                }
+
+                // ========== PARSE OTHER FIELDS ==========
                 if (headerMap.containsKey("description")) {
                     project.setDescription(getCellValue(row.getCell(headerMap.get("description"))));
                 }
@@ -935,7 +964,9 @@ public class ProjectService {
                     }
                 }
 
-                if (headerMap.containsKey("status")) {
+                // ⚠️ STATUS từ Excel chỉ áp dụng cho STUDENT/LECTURER
+                // ADMIN/DEAN luôn force ARCHIVED
+                if (!isAdminOrDean && headerMap.containsKey("status")) {
                     project.setStatus(parseStatus(row.getCell(headerMap.get("status"))));
                 }
 
@@ -953,7 +984,11 @@ public class ProjectService {
                     .map(this::toImportDto)
                     .toList();
 
-            return ResponseDto.success(result, "Imported " + result.size() + " projects successfully");
+            String message = isAdminOrDean
+                    ? "Imported " + result.size() + " project(s) as ARCHIVED (ready for students to pick)"
+                    : "Imported " + result.size() + " project(s) successfully";
+
+            return ResponseDto.success(result, message);
 
         } catch (Exception e) {
             e.printStackTrace();

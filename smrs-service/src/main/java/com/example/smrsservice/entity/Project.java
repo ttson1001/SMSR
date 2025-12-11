@@ -34,9 +34,10 @@ public class Project {
     @Column(name = "type")
     private String type;
 
+    // ⭐ FIX 1: KHÔNG SET DEFAULT - Service sẽ set
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private ProjectStatus status = ProjectStatus.PENDING;
+    private ProjectStatus status;  // ✅ Không có default value
 
     @Column(name = "create_date", nullable = false, updatable = false)
     @CreationTimestamp
@@ -52,11 +53,13 @@ public class Project {
     @Temporal(TemporalType.TIMESTAMP)
     private Date updatedAt;
 
+
+    // ⭐ Owner có thể NULL (khi ADMIN/DEAN import)
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "owner_id", nullable = false)
+    @JoinColumn(name = "owner_id", nullable = true)  // ✅ Cho phép NULL
     private Account owner;
 
-    // ✅ THÊM RELATIONSHIPS
+    // ✅ RELATIONSHIPS
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProjectFile> files = new ArrayList<>();
 
@@ -69,13 +72,13 @@ public class Project {
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProjectScore> scores = new ArrayList<>();
 
+    // ⭐ FIX 3: ProjectCouncil (số ít), không phải ProjectCouncils
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL)
-    private List<ProjectCouncil> projectCouncils = new ArrayList<>();
+    private List<ProjectCouncil> projectCouncils = new ArrayList<>();  // ✅ ProjectCouncil
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "major_id")
     private Major major;
-
 
     // ✅ HELPER METHODS
     public void addFile(ProjectFile file) {
@@ -86,5 +89,10 @@ public class Project {
     public void addImage(ProjectImage image) {
         images.add(image);
         image.setProject(this);
+    }
+
+    public void addMember(ProjectMember member) {
+        members.add(member);
+        member.setProject(this);
     }
 }

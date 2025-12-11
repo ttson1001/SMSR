@@ -195,7 +195,6 @@ public class CouncilService {
     public ResponseDto<List<ProjectCouncilDto>> getMyPendingProjects(Authentication authentication) {
         try {
             Account currentUser = getCurrentAccount(authentication);
-
             // Kiểm tra role DEAN
             if (currentUser.getRole() == null ||
                     !"DEAN".equalsIgnoreCase(currentUser.getRole().getRoleName())) {

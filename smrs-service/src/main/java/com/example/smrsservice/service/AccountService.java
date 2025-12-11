@@ -40,7 +40,6 @@ public class AccountService {
     private final RoleRepository roleRepository;
     private final JwtTokenUtil jwtTokenProvider;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
-    private final PasswordEncoderConfig passwordEncoderConfig;
     private final MailService mailService;
     private final CouncilManagerProfileRepository councilProfileRepository;
     private final MajorRepository majorRepository;
