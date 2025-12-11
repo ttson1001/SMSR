@@ -25,7 +25,7 @@ public class SwaggerConfig {
                         .version("1.0.0"))
                 .servers(List.of(
 //                        new Server().url("https://smrs.space").description("Production server"),
-//                        new Server().url("http://localhost:8080").description("Local dev server")
+                        new Server().url("http://localhost:8080").description("Local dev server")
                 ))
                 .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
                 .components(new Components().addSecuritySchemes(securitySchemeName,

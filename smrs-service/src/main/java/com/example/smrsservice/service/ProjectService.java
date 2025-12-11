@@ -419,10 +419,8 @@ public class ProjectService {
     }
 
     private ProjectResponse toResponse(Project p) {
-        // ========== Lấy danh sách members ==========
         List<ProjectMember> allMembers = projectMemberRepository.findByProjectId(p.getId());
 
-        // ========== Tìm lecturer mentor ==========
         Optional<ProjectMember> lecturerMember = allMembers.stream()
                 .filter(pm -> "LECTURER".equalsIgnoreCase(pm.getMemberRole()))
                 .findFirst();
@@ -439,7 +437,6 @@ public class ProjectService {
                     .build();
         }
 
-        // ========== Lấy danh sách students ==========
         List<ProjectResponse.StudentInfo> students = allMembers.stream()
                 .filter(pm -> "STUDENT".equalsIgnoreCase(pm.getMemberRole()))
                 .map(pm -> ProjectResponse.StudentInfo.builder()
@@ -451,7 +448,6 @@ public class ProjectService {
                         .build())
                 .collect(Collectors.toList());
 
-        // ========== Build files & images ==========
         List<ProjectResponse.FileInfo> files = (p.getFiles() != null)
                 ? p.getFiles().stream()
                 .map(f -> ProjectResponse.FileInfo.builder()
@@ -477,12 +473,26 @@ public class ProjectService {
                 ? p.getCreateDate().toInstant()
                 : null;
 
-        // ========== ⭐ CHECK HAS FINAL REPORT ==========
         boolean hasFinalReport = milestoneRepository
                 .findByProjectIdAndIsFinal(p.getId(), true)
                 .isPresent();
 
-        // ========== Return với mentor, students & hasFinalReport ==========
+        // ⭐⭐⭐ FIX NULL OWNER ⭐⭐⭐
+        Integer ownerId = null;
+        String ownerName = null;
+        String ownerEmail = null;
+        String ownerRole = null;
+
+        if (p.getOwner() != null) {
+            ownerId = p.getOwner().getId();
+            ownerName = p.getOwner().getName();
+            ownerEmail = p.getOwner().getEmail();
+            ownerRole = (p.getOwner().getRole() != null)
+                    ? p.getOwner().getRole().getRoleName()
+                    : null;
+        }
+        // ✅ Nếu owner = NULL → Các field = NULL
+
         return ProjectResponse.builder()
                 .id(p.getId())
                 .name(p.getName())
@@ -490,12 +500,11 @@ public class ProjectService {
                 .type(p.getType())
                 .dueDate(dueDate)
 
-                // Owner info
-                .ownerId(p.getOwner() != null ? p.getOwner().getId() : null)
-                .ownerName(p.getOwner() != null ? p.getOwner().getName() : null)
-                .ownerEmail(p.getOwner() != null ? p.getOwner().getEmail() : null)
-                .ownerRole(p.getOwner() != null && p.getOwner().getRole() != null
-                        ? p.getOwner().getRole().getRoleName() : null)
+                // Owner info - CÓ THỂ NULL
+                .ownerId(ownerId)
+                .ownerName(ownerName)
+                .ownerEmail(ownerEmail)
+                .ownerRole(ownerRole)
 
                 .status(p.getStatus())
                 .majorId(p.getMajor() != null ? p.getMajor().getId() : null)
@@ -508,7 +517,7 @@ public class ProjectService {
                 .mentor(mentor)
                 .students(students)
 
-                .hasFinalReport(hasFinalReport)  // ⭐ THÊM FIELD NÀY
+                .hasFinalReport(hasFinalReport)
 
                 .build();
     }
@@ -522,27 +531,31 @@ public class ProjectService {
 
             Optional<ProjectMember> lecturerMember = allMembers.stream()
                     .filter(pm -> "LECTURER".equalsIgnoreCase(pm.getMemberRole()))
-                    .filter(pm -> "Approved".equals(pm.getStatus()))  // ✅ Chỉ lấy lecturer đã approved
+                    .filter(pm -> "Approved".equals(pm.getStatus()))
                     .findFirst();
 
-            // ✅ Chỉ lấy students đã Approved để hiển thị trong danh sách thành viên
             List<ProjectMember> approvedStudentMembers = allMembers.stream()
                     .filter(pm -> "STUDENT".equalsIgnoreCase(pm.getMemberRole()))
-                    .filter(pm -> "Approved".equals(pm.getStatus()))  // ✅ Chỉ Approved
+                    .filter(pm -> "Approved".equals(pm.getStatus()))
                     .collect(Collectors.toList());
 
-            // Tính toán statistics từ tất cả students (để biết pending count)
             List<ProjectMember> allStudentMembers = allMembers.stream()
                     .filter(pm -> "STUDENT".equalsIgnoreCase(pm.getMemberRole()))
                     .collect(Collectors.toList());
 
-            ProjectDetailResponse.OwnerInfo ownerInfo = ProjectDetailResponse.OwnerInfo.builder()
-                    .id(project.getOwner().getId())
-                    .name(project.getOwner().getName())
-                    .email(project.getOwner().getEmail())
-                    .role(project.getOwner().getRole() != null ?
-                            project.getOwner().getRole().getRoleName() : null)
-                    .build();
+            // ⭐⭐⭐ FIX NULL OWNER ⭐⭐⭐
+            ProjectDetailResponse.OwnerInfo ownerInfo = null;
+
+            if (project.getOwner() != null) {
+                ownerInfo = ProjectDetailResponse.OwnerInfo.builder()
+                        .id(project.getOwner().getId())
+                        .name(project.getOwner().getName())
+                        .email(project.getOwner().getEmail())
+                        .role(project.getOwner().getRole() != null ?
+                                project.getOwner().getRole().getRoleName() : null)
+                        .build();
+            }
+            // ✅ Nếu owner = NULL → ownerInfo = NULL (OK cho ARCHIVED projects)
 
             ProjectDetailResponse.LecturerInfo lecturerInfo = null;
             if (lecturerMember.isPresent()) {
@@ -556,7 +569,6 @@ public class ProjectService {
                         .build();
             }
 
-            // ✅ Chỉ hiển thị approved students
             List<ProjectDetailResponse.MemberInfo> membersInfo = approvedStudentMembers.stream()
                     .map(pm -> ProjectDetailResponse.MemberInfo.builder()
                             .id(pm.getId())
@@ -584,7 +596,6 @@ public class ProjectService {
                             .build())
                     .collect(Collectors.toList());
 
-            // Statistics vẫn tính từ tất cả để owner biết có bao nhiêu pending
             long approvedCount = allStudentMembers.stream()
                     .filter(pm -> "Approved".equals(pm.getStatus()))
                     .count();
@@ -596,10 +607,10 @@ public class ProjectService {
             Integer totalScores = projectScoreRepository.findByProjectId(projectId).size();
 
             ProjectDetailResponse.Statistics statistics = ProjectDetailResponse.Statistics.builder()
-                    .totalMembers((int) approvedCount)  // ✅ Chỉ đếm approved
+                    .totalMembers((int) approvedCount)
                     .approvedMembers((int) approvedCount)
                     .pendingMembers((int) pendingCount)
-                    .totalStudents((int) approvedCount)  // ✅ Chỉ đếm approved
+                    .totalStudents((int) approvedCount)
                     .totalFiles(project.getFiles() != null ? project.getFiles().size() : 0)
                     .totalImages(project.getImages() != null ? project.getImages().size() : 0)
                     .hasLecturer(lecturerMember.isPresent())
@@ -613,7 +624,7 @@ public class ProjectService {
                     .status(project.getStatus())
                     .createDate(project.getCreateDate())
                     .dueDate(project.getDueDate())
-                    .owner(ownerInfo)
+                    .owner(ownerInfo)  // ⭐ CÓ THỂ NULL
                     .lecturer(lecturerInfo)
                     .members(membersInfo)
                     .files(filesInfo)
@@ -626,6 +637,7 @@ public class ProjectService {
             return ResponseDto.success(response, "Get project detail successfully");
 
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseDto.fail(e.getMessage());
         }
     }
