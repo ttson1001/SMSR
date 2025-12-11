@@ -1,8 +1,11 @@
+// ============= MajorService.java - CLEAN VERSION =============
+// Đường dẫn: src/main/java/com/example/smrsservice/service/MajorService.java
+
 package com.example.smrsservice.service;
 
 import com.example.smrsservice.dto.common.ResponseDto;
 import com.example.smrsservice.dto.lecturer.LecturerResponse;
-import com.example.smrsservice.dto.major.MajorResponse;
+import com.example.smrsservice.dto.major.MajorWithStatsDto;
 import com.example.smrsservice.entity.LecturerProfile;
 import com.example.smrsservice.entity.Major;
 import com.example.smrsservice.repository.LecturerProfileRepository;
@@ -21,16 +24,34 @@ public class MajorService {
     private final MajorRepository majorRepository;
     private final LecturerProfileRepository lecturerProfileRepository;
 
-    public ResponseDto<List<MajorResponse>> getAllActiveMajors() {
+    /**
+     * GET /api/majors
+     * Trả về tất cả majors với lecturer count
+     */
+    public ResponseDto<List<MajorWithStatsDto>> getAllActiveMajors() {
         try {
             List<Major> majors = majorRepository.findAllActiveMajors();
 
-            List<MajorResponse> responses = majors.stream()
-                    .map(this::toResponse)
+            List<MajorWithStatsDto> responses = majors.stream()
+                    .map(major -> {
+                        // ⭐ COUNT số lecturer
+                        int lecturerCount = lecturerProfileRepository.countByMajorId(major.getId());
+
+                        return MajorWithStatsDto.builder()
+                                .id(major.getId())
+                                .name(major.getName())
+                                .code(major.getCode())
+                                .description(major.getDescription())
+                                .isActive(major.getIsActive())
+                                .lecturerCount(lecturerCount)
+                                .build();
+                    })
                     .collect(Collectors.toList());
 
             return ResponseDto.success(responses, "Get majors successfully");
+
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseDto.fail(e.getMessage());
         }
     }
@@ -41,7 +62,8 @@ public class MajorService {
      */
     public ResponseDto<List<LecturerResponse>> getLecturersByMajor(Integer majorId) {
         try {
-            Major major = majorRepository.findById(Long.valueOf(majorId))
+            // ⭐ Dùng Integer trực tiếp (KHÔNG dùng Long.valueOf)
+            Major major = majorRepository.findById(majorId)
                     .orElseThrow(() -> new RuntimeException("Major not found"));
 
             List<LecturerProfile> profiles = lecturerProfileRepository.findByMajorId(majorId);
@@ -64,10 +86,14 @@ public class MajorService {
                     "Found " + responses.size() + " lecturer(s) in " + major.getName());
 
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseDto.fail(e.getMessage());
         }
     }
 
+    /**
+     * Initialize majors khi khởi động hệ thống
+     */
     @Transactional
     public void initializeMajors() {
         if (majorRepository.count() > 0) {
@@ -89,15 +115,5 @@ public class MajorService {
 
         majorRepository.saveAll(majors);
         System.out.println("✅ Initialized " + majors.size() + " majors");
-    }
-
-    private MajorResponse toResponse(Major major) {
-        return MajorResponse.builder()
-                .id(major.getId())
-                .name(major.getName())
-                .code(major.getCode())
-                .description(major.getDescription())
-                .isActive(major.getIsActive())
-                .build();
     }
 }

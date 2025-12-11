@@ -29,6 +29,8 @@ public class CouncilResponse {
     private Integer totalProjects;
 
 
+
+
     @Data
     @Builder
     @NoArgsConstructor

@@ -13,6 +13,8 @@ import java.util.List;
 @AllArgsConstructor
 public class ImportDeanResult {
 
+
+
     private Integer totalRows;
     private Integer successCount;
     private Integer failedCount;

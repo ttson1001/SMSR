@@ -241,7 +241,7 @@ public class ProjectService {
             project.setStatus(ProjectStatus.PENDING);
 
             if (dto.getMajorId() != null) {
-                Major major = majorRepository.findById(Long.valueOf(dto.getMajorId()))
+                Major major = majorRepository.findById(dto.getMajorId())
                         .orElseThrow(() -> new RuntimeException("Major not found"));
                 project.setMajor(major);
             }

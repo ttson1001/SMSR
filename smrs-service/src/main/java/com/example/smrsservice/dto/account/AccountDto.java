@@ -20,6 +20,8 @@ public class AccountDto {
     private String address;
     private String role;
 
+
+
     // ⭐ THÊM 2 FIELDS CHO DEAN
     private MajorInfo major;
     private CouncilManagerInfo councilManagerProfile;

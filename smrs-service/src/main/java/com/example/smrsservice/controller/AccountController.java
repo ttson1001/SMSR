@@ -38,13 +38,14 @@ public class AccountController {
     }
 
     @PatchMapping("/{id}/lock")
+    @Operation(summary = "Lock account")
     public ResponseEntity<Void> lock(@PathVariable Integer id) throws AccountNotFoundException {
         accountService.lockAccount(id);
-        return ResponseEntity.noContent().build(); // 204
+        return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}/activate")
-
+    @Operation(summary = "Activate account")
     public ResponseEntity<Void> activate(@PathVariable Integer id) throws AccountNotFoundException {
         accountService.activateAccount(id);
         return ResponseEntity.noContent().build();
@@ -57,25 +58,54 @@ public class AccountController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    /**
+     * ⭐ IMPORT ACCOUNTS - XỬ LÝ TẤT CẢ ROLES: STUDENT, LECTURER, DEAN
+     *
+     * Excel columns:
+     * - Required: email, role, name
+     * - Optional for all: password, phone, age, status
+     * - Required for LECTURER: majorId
+     * - Optional for LECTURER: teachingMajor, degree, yearsExperience
+     * - Required for DEAN: majorId
+     * - Optional for DEAN: employeeCode, positionTitle, department
+     */
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(
+            summary = "Import accounts from Excel file",
+            description = "Import STUDENT, LECTURER, or DEAN accounts. " +
+                    "LECTURER and DEAN require majorId. " +
+                    "Auto-generates password if not provided."
+    )
     public ResponseEntity<?> importAccounts(
-            @Parameter(description = "File Excel chứa danh sách account", required = true)
+            @Parameter(description = "Excel file with account data", required = true)
             @RequestPart("file") MultipartFile file) {
 
         if (file.isEmpty()) {
-            return ResponseEntity.badRequest().body("File không được để trống!");
+            return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "File cannot be empty"));
         }
 
         try {
             List<Account> importedAccounts = accountService.importAccountsFromExcel(file);
-            return ResponseEntity.ok(importedAccounts);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Imported " + importedAccounts.size() + " account(s) successfully",
+                    "data", importedAccounts
+            ));
+
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Lỗi khi import file: " + e.getMessage());
+                    .body(Map.of(
+                            "success", false,
+                            "message", "Error importing file: " + e.getMessage()
+                    ));
         }
     }
 
     @GetMapping
+    @Operation(summary = "Get all accounts with pagination and filters")
     public ResponseEntity<PageResponse<AccountDetailResponse>> getAllAccounts(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -101,10 +131,8 @@ public class AccountController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * ✅ FIXED: Update account không cần {id}, lấy từ token
-     */
     @PutMapping("/update")
+    @Operation(summary = "Update current account profile")
     public ResponseDto<AccountDetailResponse> updateAccount(
             @RequestBody UpdateAccountDto request,
             Authentication authentication) {
@@ -112,7 +140,8 @@ public class AccountController {
     }
 
     @GetMapping("/me")
-    public ResponseDto<AccountDto> me(Authentication authentication){
+    @Operation(summary = "Get current account info")
+    public ResponseDto<AccountDto> me(Authentication authentication) {
         return accountService.getMe(authentication);
     }
 
@@ -121,66 +150,21 @@ public class AccountController {
     @Operation(summary = "Forgot password - Send temporary password via email")
     public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest req) {
         accountService.forgotPasswordSimple(req);
-        return ResponseEntity.ok(Map.of("message", "Nếu email tồn tại, mật khẩu tạm đã được gửi."));
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "If email exists, temporary password has been sent"
+        ));
     }
 
     @PostMapping("/change-password")
-    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequest req,
-                                            Authentication auth) {
+    @Operation(summary = "Change password for authenticated user")
+    public ResponseEntity<?> changePassword(
+            @RequestBody ChangePasswordRequest req,
+            Authentication auth) {
         accountService.changePassword(req, auth);
-        return ResponseEntity.ok(Map.of("message", "Đổi mật khẩu thành công"));
-    }
-
-    @PostMapping(value = "/import-deans", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> importDeans(
-            @Parameter(description = "File Excel chứa danh sách dean", required = true)
-            @RequestPart("file") MultipartFile file,
-            Authentication authentication) {
-
-        // Check ADMIN
-        Account currentUser = getCurrentAccount(authentication);
-        if (currentUser.getRole() == null ||
-                !"ADMIN".equalsIgnoreCase(currentUser.getRole().getRoleName())) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("message", "Only admins can import deans"));
-        }
-
-        if (file.isEmpty()) {
-            return ResponseEntity.badRequest().body("File không được để trống!");
-        }
-
-        try {
-            ResponseDto<ImportDeanResult> response = accountService.importDeansFromExcel(file);
-
-            if (response.isSuccess()) {
-                return ResponseEntity.ok(response);
-            } else {
-                return ResponseEntity.badRequest().body(response);
-            }
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Lỗi khi import file: " + e.getMessage());
-        }
-    }
-
-
-    private Account getCurrentAccount(Authentication authentication) {
-        if (authentication == null) {
-            throw new RuntimeException("User not authenticated");
-        }
-
-        Object principal = authentication.getPrincipal();
-
-        if (principal instanceof Account) {
-            return (Account) principal;
-        }
-
-        if (principal instanceof String) {
-            String email = (String) principal;
-            return accountService.getAccountByEmail(email);  // ✅ GỌI SERVICE
-        }
-
-        throw new RuntimeException("Invalid authentication principal");
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Password changed successfully"
+        ));
     }
 }

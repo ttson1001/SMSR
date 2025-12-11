@@ -10,4 +10,6 @@ public interface LecturerProfileRepository extends JpaRepository<LecturerProfile
     Optional<LecturerProfile> findByAccountId(Integer accountId);
 
     List<LecturerProfile> findByMajorId(Integer majorId);
+
+    int countByMajorId(Integer majorId);
 }

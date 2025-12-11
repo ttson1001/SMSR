@@ -7,14 +7,8 @@ import com.example.smrsservice.dto.account.*;
 import com.example.smrsservice.dto.auth.LoginRequest;
 import com.example.smrsservice.dto.auth.LoginResponseDto;
 import com.example.smrsservice.dto.common.ResponseDto;
-import com.example.smrsservice.entity.Account;
-import com.example.smrsservice.entity.CouncilManagerProfile;
-import com.example.smrsservice.entity.Major;
-import com.example.smrsservice.entity.Role;
-import com.example.smrsservice.repository.AccountRepository;
-import com.example.smrsservice.repository.CouncilManagerProfileRepository;
-import com.example.smrsservice.repository.MajorRepository;
-import com.example.smrsservice.repository.RoleRepository;
+import com.example.smrsservice.entity.*;
+import com.example.smrsservice.repository.*;
 import com.example.smrsservice.security.JwtTokenUtil;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -48,8 +42,9 @@ public class AccountService {
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final PasswordEncoderConfig passwordEncoderConfig;
     private final MailService mailService;
-    private  final CouncilManagerProfileRepository councilProfileRepository;
+    private final CouncilManagerProfileRepository councilProfileRepository;
     private final MajorRepository majorRepository;
+    private final LecturerProfileRepository lecturerProfileRepository;
 
 
     public Account getAccountByEmail(String email) {
@@ -121,6 +116,9 @@ public class AccountService {
 
     }
 
+    /**
+     * ⭐ IMPORT ACCOUNTS - XỬ LÝ CẢ 3 ROLES: STUDENT, LECTURER, DEAN
+     */
     public List<Account> importAccountsFromExcel(MultipartFile file) {
         List<Account> accounts = new ArrayList<>();
 
@@ -161,8 +159,20 @@ public class AccountService {
 
                 // Đọc theo tên cột trong header
                 if (headerMap.containsKey("password")) {
-                    acc.setPassword(passwordEncoder.encode(
-                            getCellValue(row.getCell(headerMap.get("password")))));
+                    String password = getCellValue(row.getCell(headerMap.get("password")));
+                    if (password != null && !password.isBlank()) {
+                        acc.setPassword(passwordEncoder.encode(password));
+                    } else if (isNew) {
+                        // Generate temp password for new accounts
+                        String tempPassword = generateTempPassword(12);
+                        acc.setPassword(passwordEncoder.encode(tempPassword));
+                        System.out.println("Generated temp password for " + email + ": " + tempPassword);
+                    }
+                } else if (isNew) {
+                    // Generate temp password if no password column
+                    String tempPassword = generateTempPassword(12);
+                    acc.setPassword(passwordEncoder.encode(tempPassword));
+                    System.out.println("Generated temp password for " + email + ": " + tempPassword);
                 }
 
                 if (headerMap.containsKey("name")) {
@@ -187,24 +197,129 @@ public class AccountService {
                 if (headerMap.containsKey("status")) {
                     String statusValue = getCellValue(row.getCell(headerMap.get("status"))).toUpperCase();
                     acc.setStatus(statusValue.equals("LOCKED") ? AccountStatus.LOCKED : AccountStatus.ACTIVE);
+                } else {
+                    acc.setStatus(AccountStatus.ACTIVE);
                 }
 
+                // ========== ⭐ ĐỌC ROLE ==========
+                String roleName = null;
                 if (headerMap.containsKey("role")) {
-                    String roleName = getCellValue(row.getCell(headerMap.get("role")));
+                    roleName = getCellValue(row.getCell(headerMap.get("role")));
                     Role role = roleRepository.findByRoleName(roleName).orElseThrow();
                     acc.setRole(role);
                 }
 
                 accounts.add(acc);
-            }
+                accountRepository.save(acc); // ⭐ SAVE TRƯỚC để có ID
 
-            accountRepository.saveAll(accounts);
+                // ========== ⭐ XỬ LÝ THEO ROLE ==========
+                if (roleName != null) {
+                    try {
+                        if ("LECTURER".equalsIgnoreCase(roleName)) {
+                            handleLecturerProfile(acc, row, headerMap);
+                        } else if ("DEAN".equalsIgnoreCase(roleName)) {
+                            handleDeanProfile(acc, row, headerMap);
+                        }
+                        // STUDENT không cần profile, chỉ có Account
+                    } catch (Exception e) {
+                        System.err.println("⚠️ Failed to create profile for " + email + ": " + e.getMessage());
+                    }
+                }
+            }
 
         } catch (Exception e) {
             throw new RuntimeException("Lỗi khi đọc file Excel: " + e.getMessage(), e);
         }
 
         return accounts;
+    }
+
+    /**
+     * Xử lý tạo/update LecturerProfile
+     */
+    private void handleLecturerProfile(Account account, Row row, Map<String, Integer> headerMap) {
+        LecturerProfile profile = lecturerProfileRepository
+                .findByAccountId(account.getId())
+                .orElse(new LecturerProfile());
+
+        if (profile.getId() == null) {
+            profile.setAccount(account);
+        }
+
+        // ⭐ MAJOR (required cho LECTURER)
+        if (headerMap.containsKey("majorid")) {
+            String majorIdStr = getCellValue(row.getCell(headerMap.get("majorid")));
+            if (majorIdStr != null && !majorIdStr.isBlank()) {
+                Integer majorId = Integer.parseInt(majorIdStr);
+                Major major = majorRepository.findById(majorId)
+                        .orElseThrow(() -> new RuntimeException("Major not found: " + majorId));
+                profile.setMajor(major);
+                System.out.println("✅ Assigned major " + major.getName() + " to lecturer " + account.getEmail());
+            }
+        }
+
+        // Teaching Major
+        if (headerMap.containsKey("teachingmajor")) {
+            profile.setTeachingMajor(getCellValue(row.getCell(headerMap.get("teachingmajor"))));
+        }
+
+        // Degree
+        if (headerMap.containsKey("degree")) {
+            profile.setDegree(getCellValue(row.getCell(headerMap.get("degree"))));
+        }
+
+        // Years Experience
+        if (headerMap.containsKey("yearsexperience")) {
+            String yearsStr = getCellValue(row.getCell(headerMap.get("yearsexperience")));
+            if (!yearsStr.isEmpty()) {
+                profile.setYearsExperience(Integer.parseInt(yearsStr));
+            }
+        }
+        lecturerProfileRepository.save(profile);
+    }
+
+    /**
+     * Xử lý tạo/update CouncilManagerProfile (DEAN)
+     */
+    private void handleDeanProfile(Account account, Row row, Map<String, Integer> headerMap) {
+        CouncilManagerProfile profile = councilProfileRepository
+                .findByAccountId(account.getId())
+                .orElse(new CouncilManagerProfile());
+
+        if (profile.getId() == null) {
+            profile.setAccount(account);
+            profile.setStatus(CouncilManagerStatus.ACTIVE);
+            profile.setStartDate(LocalDate.now());
+        }
+
+        // ⭐ MAJOR (required cho DEAN)
+        if (headerMap.containsKey("majorid")) {
+            String majorIdStr = getCellValue(row.getCell(headerMap.get("majorid")));
+            if (majorIdStr != null && !majorIdStr.isBlank()) {
+                Integer majorId = Integer.parseInt(majorIdStr);
+                Major major = majorRepository.findById(majorId)
+                        .orElseThrow(() -> new RuntimeException("Major not found: " + majorId));
+                profile.setMajor(major);
+                System.out.println("✅ Assigned major " + major.getName() + " to dean " + account.getEmail());
+            }
+        }
+
+        // Employee Code
+        if (headerMap.containsKey("employeecode")) {
+            profile.setEmployeeCode(getCellValue(row.getCell(headerMap.get("employeecode"))));
+        }
+
+        // Position Title
+        if (headerMap.containsKey("positiontitle")) {
+            profile.setPositionTitle(getCellValue(row.getCell(headerMap.get("positiontitle"))));
+        }
+
+        // Department
+        if (headerMap.containsKey("department")) {
+            profile.setDepartment(getCellValue(row.getCell(headerMap.get("department"))));
+        }
+
+        councilProfileRepository.save(profile);
     }
 
     private String getCellValue(Cell cell) {
@@ -265,7 +380,7 @@ public class AccountService {
                             // Set major info
                             if (profile.getMajor() != null) {
                                 builder.major(AccountDetailResponse.MajorInfo.builder()
-                                        .id(profile.getMajor().getId().intValue())
+                                        .id(profile.getMajor().getId())
                                         .name(profile.getMajor().getName())
                                         .code(profile.getMajor().getCode())
                                         .description(profile.getMajor().getDescription())
@@ -301,7 +416,7 @@ public class AccountService {
      * Sử dụng Authentication để lấy thông tin user hiện tại
      */
     @Transactional
-    public  ResponseDto<AccountDetailResponse> updateAccount(UpdateAccountDto request, Authentication authentication) {
+    public ResponseDto<AccountDetailResponse> updateAccount(UpdateAccountDto request, Authentication authentication) {
         try {
             // Lấy account từ token
             Account account = currentAccount(authentication);
@@ -372,7 +487,7 @@ public class AccountService {
                     // Set major info
                     if (profile.getMajor() != null) {
                         builder.major(AccountDto.MajorInfo.builder()
-                                .id(profile.getMajor().getId().intValue())
+                                .id(profile.getMajor().getId())
                                 .name(profile.getMajor().getName())
                                 .code(profile.getMajor().getCode())
                                 .description(profile.getMajor().getDescription())
@@ -488,7 +603,9 @@ public class AccountService {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    /** Sinh mật khẩu tạm dạng Base64URL (không ký tự lạ, dễ gõ). */
+    /**
+     * Sinh mật khẩu tạm dạng Base64URL (không ký tự lạ, dễ gõ).
+     */
     private static String generateTempPassword(int numBytes) {
         byte[] buf = new byte[numBytes];
         SECURE_RANDOM.nextBytes(buf);
@@ -592,6 +709,9 @@ public class AccountService {
         };
     }
 
+    /**
+     * ⭐ IMPORT DEANS - Dedicated method for Dean import with full details
+     */
     public ResponseDto<ImportDeanResult> importDeansFromExcel(MultipartFile file) {
         try (InputStream is = file.getInputStream();
              Workbook workbook = new XSSFWorkbook(is)) {
@@ -715,7 +835,7 @@ public class AccountService {
                     }
 
                     Integer majorId = Integer.parseInt(majorIdStr);
-                    Major major = majorRepository.findById(Long.valueOf(majorId))
+                    Major major = majorRepository.findById(majorId)
                             .orElseThrow(() -> new RuntimeException("Major not found: " + majorId));
 
                     profile.setMajor(major);
@@ -763,7 +883,7 @@ public class AccountService {
                             .department(profile.getDepartment())
 
                             // Major info
-                            .majorId(major.getId().intValue())
+                            .majorId(major.getId())
                             .majorName(major.getName())
                             .majorCode(major.getCode())
 

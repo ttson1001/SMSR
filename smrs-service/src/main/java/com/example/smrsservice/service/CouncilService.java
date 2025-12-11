@@ -806,4 +806,6 @@ public class CouncilService {
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
     }
+
+
 }

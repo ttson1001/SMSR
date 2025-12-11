@@ -32,4 +32,7 @@ public class LecturerProfile {
     private Integer yearsExperience;
 
     private String degree;
+
+
+
 }
