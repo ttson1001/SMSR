@@ -37,15 +37,29 @@ public class CopyleaksClient {
     }
 
     public void submitScan(String token, String scanId, Object payload) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Object> entity = new HttpEntity<>(payload, headers);
 
+        restTemplate.exchange(
+                apiBaseUrl + "/scans/submit/url/" + scanId,
+                HttpMethod.PUT,
+                entity,
+                Void.class
+        );
+
+    }
+
+    public void submitUrlScan(String token, String scanId, Object body) {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        HttpEntity<Object> entity = new HttpEntity<>(payload, headers);
+        HttpEntity<Object> entity = new HttpEntity<>(body, headers);
 
         restTemplate.exchange(
-                apiBaseUrl + "/scans/submit/file/" + scanId,
+                apiBaseUrl + "/scans/submit/url/" + scanId,
                 HttpMethod.PUT,
                 entity,
                 Void.class

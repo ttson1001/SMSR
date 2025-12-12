@@ -1,13 +1,18 @@
 package com.example.smrsservice.controller;
 
 import com.example.smrsservice.service.CopyleaksService;
+import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/plagiarism")
+@PreAuthorize("permitAll()")
 public class CopyleaksController {
 
     private final CopyleaksService service;
@@ -21,32 +26,23 @@ public class CopyleaksController {
         return Map.of("token", service.getToken());
     }
 
-    @PostMapping("/submit/{scanId}")
-    public Map<String, Object> submit(
+    @PostMapping("/submit-url/{scanId}")
+    public Map<String, Object> submitUrl(
             @PathVariable String scanId,
             @RequestBody Map<String, Object> body
     ) {
-        if (body.containsKey("url") && !body.containsKey("filename")) {
-            throw new RuntimeException("For URL submission, 'filename' is required.");
-        }
-
         String webhookUrl = "https://smrs.space/api/plagiarism/webhook/status/{STATUS}/" + scanId;
 
-        Map<String, Object> properties = (Map<String, Object>) body.getOrDefault("properties", new HashMap<>());
-
-        Map<String, Object> webhooks = new HashMap<>();
-        webhooks.put("status", webhookUrl);
-
+        Map<String, Object> properties = new HashMap<>();
         properties.put("sandbox", true);
-        properties.put("webhooks", webhooks);
+        properties.put("webhooks", Map.of("status", webhookUrl));
 
         body.put("properties", properties);
 
-        service.submitScan(scanId, body);
+        service.submitUrlScan(scanId, body);
 
         return Map.of("ok", true);
     }
-
 
     @PostMapping("/start/{scanId}")
     public Map<String, Object> start(@PathVariable String scanId) {

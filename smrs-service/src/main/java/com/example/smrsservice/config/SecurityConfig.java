@@ -59,7 +59,8 @@ public class SecurityConfig {
                                 "/api/project-members/accept/**",
                                 "/api/project-members/reject/**",
                                 "/api/projects",
-                                "/api/students/*/profile"
+                                "/api/students/*/profile",
+                                "/api/plagiarism/**"
                         ).permitAll()
                         .anyRequest().permitAll()
                 )

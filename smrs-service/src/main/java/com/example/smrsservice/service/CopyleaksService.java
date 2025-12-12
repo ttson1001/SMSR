@@ -61,6 +61,11 @@ public class CopyleaksService {
         client.startScan(token, scanId);
     }
 
+    public void submitUrlScan(String scanId, Object body) {
+        String token = getToken();
+        client.submitUrlScan(token, scanId, body);
+    }
+
     public void saveWebhook(String scanId, String status, Object payload) {
         scanResults.put(scanId, Map.of(
                 "status", status,
