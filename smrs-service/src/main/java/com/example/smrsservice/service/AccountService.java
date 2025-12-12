@@ -346,7 +346,7 @@ public class AccountService {
 
         List<Account> accountList = accounts.getContent();
 
-        // ========== MAP TO RESPONSE VỚI MAJOR INFO CHO DEAN ==========
+        // ========== MAP TO RESPONSE VỚI MAJOR INFO CHO DEAN & LECTURER ==========
         List<AccountDetailResponse> responseList = accountList.stream()
                 .map(account -> {
                     // Build basic account info
@@ -360,7 +360,7 @@ public class AccountService {
                             .status(account.getStatus() != null ? account.getStatus().name() : null)
                             .locked(account.getStatus() != null && account.getStatus() == AccountStatus.LOCKED);
 
-                    // Role info - ⭐ SỬA: Dùng nested RoleInfo
+
                     if (account.getRole() != null) {
                         builder.role(AccountDetailResponse.RoleInfo.builder()
                                 .id(account.getRole().getId())
@@ -394,6 +394,26 @@ public class AccountService {
                                     .department(profile.getDepartment())
                                     .status(profile.getStatus() != null ? profile.getStatus().name() : null)
                                     .build());
+                        }
+                    }
+
+                    // ========== ⭐⭐⭐ THÊM MAJOR INFO CHO LECTURER ⭐⭐⭐ ==========
+                    if (account.getRole() != null && "LECTURER".equalsIgnoreCase(account.getRole().getRoleName())) {
+                        Optional<LecturerProfile> profileOpt = lecturerProfileRepository
+                                .findByAccountId(account.getId());
+
+                        if (profileOpt.isPresent()) {
+                            LecturerProfile profile = profileOpt.get();
+
+                            // Set major info
+                            if (profile.getMajor() != null) {
+                                builder.major(AccountDetailResponse.MajorInfo.builder()
+                                        .id(profile.getMajor().getId())
+                                        .name(profile.getMajor().getName())
+                                        .code(profile.getMajor().getCode())
+                                        .description(profile.getMajor().getDescription())
+                                        .build());
+                            }
                         }
                     }
 
@@ -501,6 +521,26 @@ public class AccountService {
                             .department(profile.getDepartment())
                             .status(profile.getStatus() != null ? profile.getStatus().name() : null)
                             .build());
+                }
+            }
+
+            // ========== ⭐⭐⭐ THÊM MAJOR INFO CHO LECTURER ⭐⭐⭐ ==========
+            if (account.getRole() != null && "LECTURER".equalsIgnoreCase(account.getRole().getRoleName())) {
+                Optional<LecturerProfile> profileOpt = lecturerProfileRepository
+                        .findByAccountId(account.getId());
+
+                if (profileOpt.isPresent()) {
+                    LecturerProfile profile = profileOpt.get();
+
+                    // Set major info
+                    if (profile.getMajor() != null) {
+                        builder.major(AccountDto.MajorInfo.builder()
+                                .id(profile.getMajor().getId())
+                                .name(profile.getMajor().getName())
+                                .code(profile.getMajor().getCode())
+                                .description(profile.getMajor().getDescription())
+                                .build());
+                    }
                 }
             }
 
