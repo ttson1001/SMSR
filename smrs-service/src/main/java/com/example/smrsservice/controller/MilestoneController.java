@@ -5,6 +5,7 @@ import com.example.smrsservice.dto.milestone.MilestoneResponseDto;
 import com.example.smrsservice.dto.milestone.MilestoneSubmitReportDto;
 import com.example.smrsservice.dto.milestone.MilestoneUpdateDto;
 import com.example.smrsservice.service.MilestoneService;
+import jakarta.annotation.security.PermitAll;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
