@@ -840,10 +840,17 @@ public class ProjectService {
             PickProjectRequest request,
             Authentication authentication) {
         try {
-            Account student = currentAccount(authentication);
+            Account currentUser = currentAccount(authentication);
 
-            if (student.getRole() == null || !"STUDENT".equalsIgnoreCase(student.getRole().getRoleName())) {
-                return ResponseDto.fail("Only students can pick archived projects");
+            // ⭐⭐⭐ FIX: CHO PHÉP CẢ STUDENT VÀ LECTURER ⭐⭐⭐
+            if (currentUser.getRole() == null) {
+                return ResponseDto.fail("User role not found");
+            }
+
+            String roleName = currentUser.getRole().getRoleName();
+
+            if (!"STUDENT".equalsIgnoreCase(roleName) && !"LECTURER".equalsIgnoreCase(roleName)) {
+                return ResponseDto.fail("Only students and lecturers can pick archived projects");
             }
 
             Project project = projectRepository.findById(projectId)
@@ -853,13 +860,16 @@ public class ProjectService {
                 return ResponseDto.fail("This project is not available for picking");
             }
 
-            project.setOwner(student);
+            // Set owner (STUDENT hoặc LECTURER)
+            project.setOwner(currentUser);
             project.setStatus(ProjectStatus.PENDING);
 
+            // Update description nếu có
             if (request.getDescription() != null) {
                 project.setDescription(request.getDescription());
             }
 
+            // Update files nếu có
             if (request.getFiles() != null && !request.getFiles().isEmpty()) {
                 project.getFiles().clear();
                 for (PickProjectRequest.FileDto f : request.getFiles()) {
@@ -871,6 +881,7 @@ public class ProjectService {
                 }
             }
 
+            // Update images nếu có
             if (request.getImages() != null && !request.getImages().isEmpty()) {
                 project.getImages().clear();
                 for (PickProjectRequest.ImageDto i : request.getImages()) {
@@ -882,6 +893,8 @@ public class ProjectService {
             }
 
             projectRepository.save(project);
+
+            System.out.println("✅ " + roleName + " picked project: " + project.getName() + " (ID: " + projectId + ")");
 
             return ResponseDto.success(toResponse(project), "Project picked successfully");
 
