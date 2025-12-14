@@ -217,14 +217,13 @@ public class ProjectService {
     @Transactional
     public ResponseDto<ProjectResponse> createProject(ProjectCreateDto dto, Authentication authentication) {
         try {
-            Account owner = currentAccount(authentication);
+            Account currentUser = currentAccount(authentication);
 
-            if (owner.getRole() == null) {
+            if (currentUser.getRole() == null) {
                 return ResponseDto.fail("User role not found");
             }
 
-            String roleName = owner.getRole().getRoleName();
-
+            String roleName = currentUser.getRole().getRoleName();
 
             Set<String> allowedRoles = Set.of("LECTURER", "STUDENT", "ADMIN", "DEAN");
 
@@ -232,13 +231,31 @@ public class ProjectService {
                 return ResponseDto.fail("You don't have permission to create projects");
             }
 
+            // ⭐ CHECK: ADMIN/DEAN vs STUDENT/LECTURER
+            boolean isAdminOrDean = "ADMIN".equalsIgnoreCase(roleName)
+                    || "DEAN".equalsIgnoreCase(roleName);
+
             Project project = new Project();
             project.setName(dto.getName());
             project.setDescription(dto.getDescription());
             project.setType(dto.getType());
             project.setDueDate(dto.getDueDate());
-            project.setOwner(owner);
-            project.setStatus(ProjectStatus.PENDING);
+
+            // ⭐⭐⭐ LOGIC MỚI: Phân biệt role ⭐⭐⭐
+            if (isAdminOrDean) {
+                // ADMIN/DEAN tạo project → ARCHIVED, không có owner
+                // Để Student có thể pick vào sau
+                project.setOwner(null);
+                project.setStatus(ProjectStatus.ARCHIVED);
+                System.out.println("✅ ADMIN/DEAN created project: " + dto.getName()
+                        + " (ARCHIVED, no owner - ready for students to pick)");
+            } else {
+                // STUDENT/LECTURER tạo project → họ là owner, status PENDING
+                project.setOwner(currentUser);
+                project.setStatus(ProjectStatus.PENDING);
+                System.out.println("✅ " + roleName + " created project: " + dto.getName()
+                        + " (PENDING, owner: " + currentUser.getEmail() + ")");
+            }
 
             if (dto.getMajorId() != null) {
                 Major major = majorRepository.findById(dto.getMajorId())
@@ -267,14 +284,19 @@ public class ProjectService {
 
             projectRepository.save(project);
 
-            // ✅ Chỉ invite members nếu không phải ADMIN/DEAN (hoặc vẫn cho phép tùy logic)
-            if (dto.getInvitedEmails() != null && !dto.getInvitedEmails().isEmpty()) {
-                inviteMembers(project, dto.getInvitedEmails(), owner);
+            // ⭐ CHỈ invite members nếu KHÔNG PHẢI ADMIN/DEAN
+            // Vì ADMIN/DEAN tạo project ARCHIVED, chưa có owner để invite
+            if (!isAdminOrDean && dto.getInvitedEmails() != null && !dto.getInvitedEmails().isEmpty()) {
+                inviteMembers(project, dto.getInvitedEmails(), currentUser);
             }
 
             ProjectResponse res = toResponse(project);
 
-            return ResponseDto.success(res, "Project created successfully");
+            String message = isAdminOrDean
+                    ? "Project created as ARCHIVED (ready for students to pick)"
+                    : "Project created successfully";
+
+            return ResponseDto.success(res, message);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -842,7 +864,7 @@ public class ProjectService {
         try {
             Account currentUser = currentAccount(authentication);
 
-            // ⭐⭐⭐ FIX: CHO PHÉP CẢ STUDENT VÀ LECTURER ⭐⭐⭐
+
             if (currentUser.getRole() == null) {
                 return ResponseDto.fail("User role not found");
             }
