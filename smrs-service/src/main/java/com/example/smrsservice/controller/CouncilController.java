@@ -168,7 +168,7 @@ public class CouncilController {
 
 
     @GetMapping("/all")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DEAN')")
     @Operation(summary = "Get all councils with pagination and filters (Admin only)")
     public ResponseEntity<ResponseDto<PageResponse<CouncilResponse>>> getAllCouncils(
             @Parameter(description = "Page number (1-indexed)")
