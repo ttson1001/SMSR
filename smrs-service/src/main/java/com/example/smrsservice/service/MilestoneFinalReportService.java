@@ -73,7 +73,7 @@ public class MilestoneFinalReportService {
     public ResponseDto<MilestoneResponseDto> getFinalReportByProject(Integer projectId) {
         try {
             Milestone milestone = milestoneRepository
-                    .findByProjectIdAndIsFinal(projectId, true)
+                    .findFirstByProjectIdAndIsFinalOrderByIdDesc(projectId, true)
                     .orElseThrow(() -> new RuntimeException("Final milestone not found for this project"));
 
             return ResponseDto.success(toResponseDto(milestone), "OK");

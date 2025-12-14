@@ -318,7 +318,7 @@ public class ProjectScoreService {
             Authentication authentication) {
         try {
             Milestone finalMilestone = milestoneRepository
-                    .findByProjectIdAndIsFinal(projectId, true)
+                    .findFirstByProjectIdAndIsFinalOrderByIdDesc(projectId, true)
                     .orElseThrow(() -> new RuntimeException("Final milestone not found for this project"));
 
             List<ProjectScore> scores = projectScoreRepository.findByFinalMilestoneId(finalMilestone.getId());

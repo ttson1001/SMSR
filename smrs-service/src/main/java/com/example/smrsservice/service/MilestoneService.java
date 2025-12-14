@@ -157,7 +157,7 @@ public class MilestoneService {
      */
     public MilestoneResponseDto getFinalMilestone(Integer projectId) {
         Milestone milestone = milestoneRepository
-                .findByProjectIdAndIsFinalTrue(projectId)
+                .findFirstByProjectIdAndIsFinalTrueOrderByIdDesc(projectId)
                 .orElseThrow(() -> new RuntimeException("Final milestone not found for this project"));
 
         return mapToDto(milestone);

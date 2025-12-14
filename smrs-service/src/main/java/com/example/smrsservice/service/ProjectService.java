@@ -499,7 +499,7 @@ public class ProjectService {
                 : null;
 
         boolean hasFinalReport = milestoneRepository
-                .findByProjectIdAndIsFinal(p.getId(), true)
+                .findFirstByProjectIdAndIsFinalOrderByIdDesc(p.getId(), true)
                 .isPresent();
 
         // ⭐⭐⭐ FIX NULL OWNER ⭐⭐⭐
@@ -701,7 +701,7 @@ public class ProjectService {
                 Council council = pc.getCouncil();
 
                 Optional<Milestone> finalMilestoneOpt =
-                        milestoneRepository.findByProjectIdAndIsFinal(project.getId(), true);
+                        milestoneRepository.findFirstByProjectIdAndIsFinalOrderByIdDesc(project.getId(), true);
 
                 if (!finalMilestoneOpt.isPresent()) {
                     continue;
@@ -804,7 +804,7 @@ public class ProjectService {
 
             // Lấy final milestone của project
             Milestone finalMilestone = milestoneRepository
-                    .findByProjectIdAndIsFinal(projectId, true)
+                    .findFirstByProjectIdAndIsFinalOrderByIdDesc(projectId, true)
                     .orElseThrow(() -> new RuntimeException("Final milestone not found for this project"));
 
             // Lấy điểm mà giảng viên này đã chấm cho final milestone đó
@@ -1147,7 +1147,7 @@ public class ProjectService {
             for (Project project : myProjects) {
                 // ========== Chỉ lấy những project có final milestone ==========
                 Optional<Milestone> finalMilestoneOpt =
-                        milestoneRepository.findByProjectIdAndIsFinal(project.getId(), true);
+                        milestoneRepository.findFirstByProjectIdAndIsFinalOrderByIdDesc(project.getId(), true);
 
                 if (!finalMilestoneOpt.isPresent()) {
                     continue; // Skip nếu chưa có final milestone
@@ -1422,7 +1422,7 @@ public class ProjectService {
 
                 // Lấy final milestone (nếu có)
                 Optional<Milestone> finalMilestoneOpt = milestoneRepository
-                        .findByProjectIdAndIsFinal(project.getId(), true);
+                        .findFirstByProjectIdAndIsFinalOrderByIdDesc(project.getId(), true);
 
                 boolean hasFinalReport = finalMilestoneOpt.isPresent();
                 String finalReportUrl = finalMilestoneOpt.isPresent()
