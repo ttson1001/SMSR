@@ -712,10 +712,14 @@ public class CouncilService {
             Integer deanId,
             Authentication authentication) {
         try {
-            // Check ADMIN role
+            // ✅ SỬA: Cho phép cả ADMIN và DEAN
             Account currentUser = getCurrentAccount(authentication);
-            if (!"ADMIN".equalsIgnoreCase(currentUser.getRole().getRoleName())) {
-                return ResponseDto.fail("Only admins can access all councils");
+            String roleName = currentUser.getRole() != null
+                    ? currentUser.getRole().getRoleName()
+                    : "";
+
+            if (!"ADMIN".equalsIgnoreCase(roleName) && !"DEAN".equalsIgnoreCase(roleName)) {
+                return ResponseDto.fail("Only admins and deans can access all councils");
             }
 
             Pageable pageable = PageRequest.of(page - 1, size);
@@ -730,7 +734,6 @@ public class CouncilService {
                     .map(council -> {
                         CouncilResponse response = buildCouncilResponse(council);
 
-                        // CHỈ CẦN: Total projects
                         List<ProjectCouncil> projectCouncils = projectCouncilRepository.findByCouncilId(council.getId());
                         response.setTotalProjects(projectCouncils.size());
 
