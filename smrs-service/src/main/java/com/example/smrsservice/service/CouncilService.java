@@ -247,31 +247,25 @@ public class CouncilService {
             Project project = projectRepository.findById(projectId)
                     .orElseThrow(() -> new RuntimeException("Project not found"));
 
-            // ✅ LOGIC MỚI - CHO PHÉP REJECT KHÔNG CẦN COUNCIL
+            // ========== CASE 1: REJECT ==========
             if (request.getDecision() == DecisionStatus.REJECTED) {
-                // CASE 1: REJECT - Không bắt buộc phải có council
                 List<ProjectCouncil> projectCouncils = projectCouncilRepository.findByProjectId(projectId);
 
                 if (!projectCouncils.isEmpty()) {
-                    // Nếu đã assign council, cập nhật decision trong project_council
                     ProjectCouncil projectCouncil = projectCouncils.stream()
                             .filter(pc -> pc.getCouncil().getDean().getId().equals(deanProfile.getId()))
                             .findFirst()
-                            .orElseThrow(() -> new RuntimeException("You are not authorized to review this project"));
+                            .orElse(null);
 
-                    if (projectCouncil.getDecision() != DecisionStatus.PENDING) {
-                        return ResponseDto.fail("Decision already made for this project: " + projectCouncil.getDecision());
+                    if (projectCouncil != null) {
+                        projectCouncil.setDecision(DecisionStatus.REJECTED);
+                        projectCouncil.setComment(request.getComment());
+                        projectCouncil.setDecisionDate(Instant.now());
+                        projectCouncil.setDecidedBy(deanProfile);
+                        projectCouncilRepository.save(projectCouncil);
                     }
-
-                    projectCouncil.setDecision(DecisionStatus.REJECTED);
-                    projectCouncil.setComment(request.getComment());
-                    projectCouncil.setDecisionDate(Instant.now());
-                    projectCouncil.setDecidedBy(deanProfile);
-                    projectCouncilRepository.save(projectCouncil);
                 }
-                // ✅ Nếu chưa assign council, vẫn cho phép reject trực tiếp
 
-                // Cập nhật project status
                 project.setStatus(ProjectStatus.REJECTED);
                 projectRepository.save(project);
 
@@ -279,39 +273,42 @@ public class CouncilService {
                 return ResponseDto.success(null, "Project rejected successfully");
             }
 
-            // ✅ CASE 2: APPROVE - BẮT BUỘC PHẢI CÓ COUNCIL
-            List<ProjectCouncil> projectCouncils = projectCouncilRepository.findByProjectId(projectId);
-            if (projectCouncils.isEmpty()) {
-                return ResponseDto.fail("Project must be assigned to a council before approval");
+            // ========== CASE 2: APPROVE - KHÔNG CẦN COUNCIL ==========
+            if (request.getDecision() == DecisionStatus.APPROVED) {
+
+                // Kiểm tra project đã được approve chưa
+                if (project.getStatus() == ProjectStatus.APPROVED) {
+                    return ResponseDto.fail("Project already approved");
+                }
+
+                // ✅ Nếu đã có council (optional), cập nhật decision trong project_council
+                List<ProjectCouncil> projectCouncils = projectCouncilRepository.findByProjectId(projectId);
+                if (!projectCouncils.isEmpty()) {
+                    ProjectCouncil projectCouncil = projectCouncils.stream()
+                            .filter(pc -> pc.getCouncil().getDean().getId().equals(deanProfile.getId()))
+                            .findFirst()
+                            .orElse(null);
+
+                    if (projectCouncil != null && projectCouncil.getDecision() == DecisionStatus.PENDING) {
+                        projectCouncil.setDecision(DecisionStatus.APPROVED);
+                        projectCouncil.setComment(request.getComment());
+                        projectCouncil.setDecisionDate(Instant.now());
+                        projectCouncil.setDecidedBy(deanProfile);
+                        projectCouncilRepository.save(projectCouncil);
+                    }
+                }
+                // ✅ Không có council cũng OK - Dean approve trực tiếp
+
+                // Cập nhật project status
+                project.setStatus(ProjectStatus.APPROVED);
+                projectRepository.save(project);
+
+                System.out.println("✅ Project " + projectId + " APPROVED by dean " + currentUser.getName());
+                return ResponseDto.success(null, "Project approved successfully. Waiting for final report submission.");
             }
 
-            ProjectCouncil projectCouncil = projectCouncils.stream()
-                    .filter(pc -> pc.getCouncil().getDean().getId().equals(deanProfile.getId()))
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("You are not authorized to review this project"));
-
-            if (projectCouncil.getDecision() != DecisionStatus.PENDING) {
-                return ResponseDto.fail("Decision already made for this project: " + projectCouncil.getDecision());
-            }
-
-            // Validate decision
-            if (request.getDecision() != DecisionStatus.APPROVED &&
-                    request.getDecision() != DecisionStatus.REJECTED) {
-                return ResponseDto.fail("Decision must be APPROVED or REJECTED");
-            }
-
-            // Cập nhật decision
-            projectCouncil.setDecision(DecisionStatus.APPROVED);
-            projectCouncil.setComment(request.getComment());
-            projectCouncil.setDecisionDate(Instant.now());
-            projectCouncil.setDecidedBy(deanProfile);
-            projectCouncilRepository.save(projectCouncil);
-
-            project.setStatus(ProjectStatus.APPROVED);
-            projectRepository.save(project);
-
-            System.out.println("✅ Project " + projectId + " APPROVED by dean " + currentUser.getName());
-            return ResponseDto.success(null, "Project approved successfully");
+            // ========== CASE 3: Invalid decision ==========
+            return ResponseDto.fail("Decision must be APPROVED or REJECTED");
 
         } catch (Exception e) {
             e.printStackTrace();
