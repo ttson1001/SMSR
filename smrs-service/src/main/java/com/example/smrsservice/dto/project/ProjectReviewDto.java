@@ -54,4 +54,7 @@ public class ProjectReviewDto {
     private Integer totalMembers;        // Tổng số thành viên project
     private Integer totalStudents;       // Số sinh viên
     private Boolean hasLecturer;         // Có giảng viên hướng dẫn chưa
+
+    // ==================== AI ======================
+    private Boolean isCheck;
 }

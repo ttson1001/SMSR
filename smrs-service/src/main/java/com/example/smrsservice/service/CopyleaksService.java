@@ -7,7 +7,9 @@ import com.example.smrsservice.repository.PlagiarismResultRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -91,7 +93,14 @@ public class CopyleaksService {
         }
     }
 
-    public Object getScanResult(String scanId) {
-        return scanResults.get(scanId);
+    public PlagiarismResult getByScanId(String scanId) {
+        return repo.findByScanId(scanId)
+                .orElseThrow(() ->
+                        new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "không tìm thấy Id: " + scanId
+                        )
+                );
     }
+
 }

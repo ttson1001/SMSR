@@ -50,7 +50,8 @@ public class CopyleaksController {
 
     @GetMapping("/result/{scanId}")
     public Object getResult(@PathVariable String scanId) {
-        return service.getScanResult(scanId);
+        return service.getByScanId(scanId);
     }
+
 }
 

@@ -8,4 +8,5 @@ import java.util.Optional;
 public interface PlagiarismResultRepository extends JpaRepository<PlagiarismResult, Long> {
 
     Optional<PlagiarismResult> findTopByScanIdOrderByReceivedAtDesc(String scanId);
+    Optional<PlagiarismResult> findByScanId(String scanId);
 }
