@@ -68,7 +68,7 @@ public class ProjectPublicationService {
 
             // ========== KIỂM TRA PROJECT ĐÃ CÓ FINAL REPORT CHƯA ==========
             boolean hasFinalReport = milestoneRepository
-                    .findFirstByProjectIdAndIsFinalOrderByIdDesc(project.getId(), true)
+                    .findFirstByProjectIdAndIsFinalOrderByIdDesc(project.getId(), true)  
                     .isPresent();
 
             if (!hasFinalReport) {

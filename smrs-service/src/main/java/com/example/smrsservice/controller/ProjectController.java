@@ -7,7 +7,6 @@ import com.example.smrsservice.dto.project.*;
 import com.example.smrsservice.dto.score.ProjectScoreCreateDto;
 import com.example.smrsservice.dto.score.ProjectScoreUpdateDto;  // ⭐ THÊM IMPORT
 import com.example.smrsservice.dto.score.ProjectScoreResponseDto;
-import com.example.smrsservice.entity.Project;
 import com.example.smrsservice.service.MilestoneFinalReportService;
 import com.example.smrsservice.service.ProjectService;
 import com.example.smrsservice.service.ProjectScoreService;
@@ -162,7 +161,7 @@ public class ProjectController {
             Authentication authentication
     ) {
         ResponseDto<List<ProjectScoreResponseDto>> response = projectScoreService.getScoresByProject(
-                projectId, authentication
+                projectId
         );
         return ResponseEntity.status(
                 response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST

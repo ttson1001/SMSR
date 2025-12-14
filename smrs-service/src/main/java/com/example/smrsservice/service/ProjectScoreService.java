@@ -39,43 +39,35 @@ public class ProjectScoreService {
         try {
             Account lecturer = currentAccount(authentication);
 
-            // Chỉ giảng viên được chấm điểm
             if (!"LECTURER".equalsIgnoreCase(lecturer.getRole().getRoleName())) {
                 return ResponseDto.fail("Only lecturers can score projects");
             }
 
-            // Lấy project
             Project project = projectRepository.findById(dto.getProjectId())
                     .orElseThrow(() -> new RuntimeException("Project not found"));
 
-            // Lấy milestone final
             Milestone milestone = milestoneRepository.findById(dto.getFinalReportId())
                     .orElseThrow(() -> new RuntimeException("Milestone not found"));
 
-            // Kiểm tra milestone là final
             if (!Boolean.TRUE.equals(milestone.getIsFinal())) {
                 return ResponseDto.fail("This milestone is not final and cannot be scored");
             }
 
-            // Kiểm tra milestone thuộc project
             if (!milestone.getProject().getId().equals(dto.getProjectId())) {
                 return ResponseDto.fail("This final milestone does not belong to the given project");
             }
 
-            // Kiểm tra lecturer đã chấm milestone final này chưa
             if (projectScoreRepository.existsByFinalMilestoneIdAndLecturerId(dto.getFinalReportId(), lecturer.getId())) {
                 return ResponseDto.fail("You have already scored this final milestone");
             }
 
-            // Validate thang điểm
             if (!validateScores(dto)) {
                 return ResponseDto.fail("Invalid scores. Please check maximum points for each criteria");
             }
 
-            // Tạo điểm
             ProjectScore score = ProjectScore.builder()
                     .project(project)
-                    .finalMilestone(milestone)  // Đổi từ finalReport → finalMilestone
+                    .finalMilestone(milestone)
                     .lecturer(lecturer)
                     .criteria1Score(dto.getCriteria1Score())
                     .criteria2Score(dto.getCriteria2Score())
@@ -130,13 +122,53 @@ public class ProjectScoreService {
         }
     }
 
-    public ResponseDto<List<ProjectScoreResponseDto>> getScoresByProject(Integer projectId) {
+    // ✅ XÓA METHOD CŨ NÀY (dòng ~111)
+    // public ResponseDto<List<ProjectScoreResponseDto>> getScoresByProject(Integer projectId) {
+    //     ...
+    // }
+
+    // ✅ GIỮ LẠI METHOD MỚI NÀY
+    /**
+     * Lấy tất cả scores của một project
+     */
+    public ResponseDto<List<ProjectScoreResponseDto>> getScoresByProject(
+            Integer projectId) {
         try {
-            List<ProjectScore> scores = projectScoreRepository.findByProjectId(projectId);
-            List<ProjectScoreResponseDto> result = scores.stream()
-                    .map(this::toResponseDto)
+            // ✅ THÊM true ở đây
+            Milestone finalMilestone = milestoneRepository
+                    .findFirstByProjectIdAndIsFinalOrderByIdDesc(projectId, true)
+                    .orElseThrow(() -> new RuntimeException("Final milestone not found for this project"));
+
+            List<ProjectScore> scores = projectScoreRepository.findByFinalMilestoneId(finalMilestone.getId());
+
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+            List<ProjectScoreResponseDto> dtos = scores.stream()
+                    .map(score -> ProjectScoreResponseDto.builder()
+                            .id(score.getId())
+                            .projectId(score.getProject().getId())
+                            .projectName(score.getProject().getName())
+                            .finalMilestoneId(score.getFinalMilestone().getId())
+                            .lecturerId(score.getLecturer().getId())
+                            .lecturerName(score.getLecturer().getName())
+                            .criteria1Score(score.getCriteria1Score())
+                            .criteria2Score(score.getCriteria2Score())
+                            .criteria3Score(score.getCriteria3Score())
+                            .criteria4Score(score.getCriteria4Score())
+                            .criteria5Score(score.getCriteria5Score())
+                            .criteria6Score(score.getCriteria6Score())
+                            .bonusScore1(score.getBonusScore1())
+                            .bonusScore2(score.getBonusScore2())
+                            .totalScore(score.getTotalScore())
+                            .finalScore(score.getFinalScore())
+                            .comment(score.getComment())
+                            .scoreDate(score.getScoreDate() != null ?
+                                    sdf.format(score.getScoreDate()) : null)
+                            .build())
                     .collect(Collectors.toList());
-            return ResponseDto.success(result, "OK");
+
+            return ResponseDto.success(dtos, "Found " + dtos.size() + " scores");
+
         } catch (Exception e) {
             return ResponseDto.fail(e.getMessage());
         }
@@ -190,7 +222,6 @@ public class ProjectScoreService {
         try {
             List<ProjectScore> scores = projectScoreRepository.findAll();
 
-            // Filter by keyword (search in project name, lecturer name, comment)
             if (keyword != null && !keyword.trim().isEmpty()) {
                 String lowerKeyword = keyword.toLowerCase().trim();
                 scores = scores.stream()
@@ -202,7 +233,6 @@ public class ProjectScoreService {
                         .collect(Collectors.toList());
             }
 
-            // Filter by status (based on final score range)
             if (status != null && !status.trim().isEmpty()) {
                 scores = scores.stream()
                         .filter(score -> matchesStatus(score.getFinalScore(), status))
@@ -239,6 +269,24 @@ public class ProjectScoreService {
                     .map(this::toResponseDto)
                     .collect(Collectors.toList());
             return ResponseDto.success(result, "OK");
+        } catch (Exception e) {
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * Lấy điểm trung bình của project
+     */
+    public ResponseDto<Double> getAverageScoreByProject(Integer projectId) {
+        try {
+            Double avgScore = projectScoreRepository.getAverageScoreByProjectId(projectId);
+
+            if (avgScore == null) {
+                return ResponseDto.success(0.0, "No scores yet");
+            }
+
+            return ResponseDto.success(avgScore, "Average calculated");
+
         } catch (Exception e) {
             return ResponseDto.fail(e.getMessage());
         }
@@ -310,67 +358,4 @@ public class ProjectScoreService {
         }
         throw new RuntimeException("Invalid authentication principal type");
     }
-    /**
-     * Lấy tất cả scores của một project
-     */
-    public ResponseDto<List<ProjectScoreResponseDto>> getScoresByProject(
-            Integer projectId,
-            Authentication authentication) {
-        try {
-            Milestone finalMilestone = milestoneRepository
-                    .findFirstByProjectIdAndIsFinalOrderByIdDesc(projectId, true)
-                    .orElseThrow(() -> new RuntimeException("Final milestone not found for this project"));
-
-            List<ProjectScore> scores = projectScoreRepository.findByFinalMilestoneId(finalMilestone.getId());
-
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-
-            List<ProjectScoreResponseDto> dtos = scores.stream()
-                    .map(score -> ProjectScoreResponseDto.builder()
-                            .id(score.getId())
-                            .projectId(score.getProject().getId())
-                            .projectName(score.getProject().getName())
-                            .finalMilestoneId(score.getFinalMilestone().getId())
-                            .lecturerId(score.getLecturer().getId())
-                            .lecturerName(score.getLecturer().getName())
-                            .criteria1Score(score.getCriteria1Score())
-                            .criteria2Score(score.getCriteria2Score())
-                            .criteria3Score(score.getCriteria3Score())
-                            .criteria4Score(score.getCriteria4Score())
-                            .criteria5Score(score.getCriteria5Score())
-                            .criteria6Score(score.getCriteria6Score())
-                            .bonusScore1(score.getBonusScore1())
-                            .bonusScore2(score.getBonusScore2())
-                            .totalScore(score.getTotalScore())
-                            .finalScore(score.getFinalScore())
-                            .comment(score.getComment())
-                            .scoreDate(score.getScoreDate() != null ?
-                                    sdf.format(score.getScoreDate()) : null)
-                            .build())
-                    .collect(Collectors.toList());
-
-            return ResponseDto.success(dtos, "Found " + dtos.size() + " scores");
-
-        } catch (Exception e) {
-            return ResponseDto.fail(e.getMessage());
-        }
-    }
-
-    /**
-     * Lấy điểm trung bình của project
-     */
-    public ResponseDto<Double> getAverageScoreByProject(Integer projectId) {
-        try {
-            Double avgScore = projectScoreRepository.getAverageScoreByProjectId(projectId);
-
-            if (avgScore == null) {
-                return ResponseDto.success(0.0, "No scores yet");
-            }
-
-            return ResponseDto.success(avgScore, "Average calculated");
-
-        } catch (Exception e) {
-            return ResponseDto.fail(e.getMessage());
-        }
-    }
-} // ← Dấu } cuối cùng c
+}
