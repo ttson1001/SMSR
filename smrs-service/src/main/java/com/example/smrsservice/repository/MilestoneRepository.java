@@ -23,6 +23,12 @@ public interface MilestoneRepository extends JpaRepository<Milestone, Integer> {
             @Param("isFinal") Boolean isFinal
     );
 
+    @Query(value = "SELECT * FROM milestone WHERE project_id = :projectId AND is_final = :isFinal ORDER BY id DESC LIMIT 1", nativeQuery = true)
+    Optional<Milestone> findByProjectIdAndIsFinal(
+            @Param("projectId") Integer projectId,
+            @Param("isFinal") Boolean isFinal
+    );
+
     List<Milestone> findAllByProjectIdAndIsFinal(Integer projectId, Boolean isFinal);
 
     List<Milestone> findByIsFinalAndStatus(Boolean isFinal, String status);
