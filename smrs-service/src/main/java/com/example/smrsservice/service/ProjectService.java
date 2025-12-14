@@ -15,12 +15,14 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
@@ -45,6 +47,7 @@ public class ProjectService {
     private final CouncilMemberRepository councilMemberRepository;
     private final ProjectCouncilRepository projectCouncilRepository;
     private final MilestoneRepository milestoneRepository;
+    private final PlagiarismResultRepository plagiarismResultRepository;
 
 
     private static final int MAX_STUDENTS_PER_PROJECT = 5;
@@ -733,6 +736,11 @@ public class ProjectService {
                         .anyMatch(pm -> "LECTURER".equalsIgnoreCase(pm.getMemberRole())
                                 && "Approved".equals(pm.getStatus()));
 
+
+                boolean isCheck =
+                        plagiarismResultRepository
+                                .findByScanId(finalMilestone.getId().toString())
+                                .isPresent();
                 ProjectReviewDto dto = ProjectReviewDto.builder()
                         .projectId(project.getId())
                         .projectName(project.getName())
@@ -775,7 +783,7 @@ public class ProjectService {
                         .totalMembers(projectMembers.size())
                         .totalStudents((int) totalStudents)
                         .hasLecturer(hasLecturer)
-
+                        .isCheck(isCheck)
                         .build();
 
                 result.add(dto);
