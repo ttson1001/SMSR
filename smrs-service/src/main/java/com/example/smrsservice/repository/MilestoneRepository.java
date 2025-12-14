@@ -11,12 +11,13 @@ import java.util.Optional;
 
 @Repository
 public interface MilestoneRepository extends JpaRepository<Milestone, Integer> {
+
     List<Milestone> findByProject_Id(Integer projectId);
 
     boolean existsByProjectIdAndIsFinalTrue(Integer projectId);
 
-
-    @Query("SELECT m FROM Milestone m WHERE m.project.id = :projectId AND m.isFinal = :isFinal ORDER BY m.id DESC")
+    // ✅ SỬA: Dùng native query với LIMIT 1
+    @Query(value = "SELECT * FROM milestone WHERE project_id = :projectId AND is_final = :isFinal ORDER BY id DESC LIMIT 1", nativeQuery = true)
     Optional<Milestone> findFirstByProjectIdAndIsFinalOrderByIdDesc(
             @Param("projectId") Integer projectId,
             @Param("isFinal") Boolean isFinal
