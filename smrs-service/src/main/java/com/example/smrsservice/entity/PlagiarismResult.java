@@ -29,5 +29,4 @@ public class PlagiarismResult {
 
     private Instant receivedAt = Instant.now();
 
-    // getter/setter
 }
