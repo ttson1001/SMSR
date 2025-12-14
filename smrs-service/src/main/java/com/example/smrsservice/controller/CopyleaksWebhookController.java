@@ -22,8 +22,10 @@ public class CopyleaksWebhookController {
             @PathVariable String status,
             @PathVariable String scanId,
             @RequestBody Map<String, Object> body
-    ) {
+    ) throws Exception {
+
         service.saveWebhook(scanId, status, body);
         return Map.of("ok", true);
     }
+
 }
