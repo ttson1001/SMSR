@@ -1,6 +1,5 @@
 package com.example.smrsservice.repository;
 
-
 import com.example.smrsservice.entity.Milestone;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -17,9 +16,11 @@ public interface MilestoneRepository extends JpaRepository<Milestone, Integer> {
     boolean existsByProjectIdAndIsFinalTrue(Integer projectId);
 
 
-    Optional<Milestone> findFirstByProjectIdAndIsFinalTrueOrderByIdDesc(Integer projectId);
-
-    Optional<Milestone> findFirstByProjectIdAndIsFinalOrderByIdDesc(Integer projectId, Boolean isFinal);
+    @Query("SELECT m FROM Milestone m WHERE m.project.id = :projectId AND m.isFinal = :isFinal ORDER BY m.id DESC")
+    Optional<Milestone> findFirstByProjectIdAndIsFinalOrderByIdDesc(
+            @Param("projectId") Integer projectId,
+            @Param("isFinal") Boolean isFinal
+    );
 
     List<Milestone> findAllByProjectIdAndIsFinal(Integer projectId, Boolean isFinal);
 

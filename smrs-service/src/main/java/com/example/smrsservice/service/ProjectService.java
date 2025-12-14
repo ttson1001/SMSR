@@ -234,7 +234,6 @@ public class ProjectService {
                 return ResponseDto.fail("You don't have permission to create projects");
             }
 
-            // ⭐ CHECK: ADMIN/DEAN vs STUDENT/LECTURER
             boolean isAdminOrDean = "ADMIN".equalsIgnoreCase(roleName)
                     || "DEAN".equalsIgnoreCase(roleName);
 
@@ -244,16 +243,12 @@ public class ProjectService {
             project.setType(dto.getType());
             project.setDueDate(dto.getDueDate());
 
-            // ⭐⭐⭐ LOGIC MỚI: Phân biệt role ⭐⭐⭐
             if (isAdminOrDean) {
-                // ADMIN/DEAN tạo project → ARCHIVED, không có owner
-                // Để Student có thể pick vào sau
                 project.setOwner(null);
                 project.setStatus(ProjectStatus.ARCHIVED);
                 System.out.println("✅ ADMIN/DEAN created project: " + dto.getName()
                         + " (ARCHIVED, no owner - ready for students to pick)");
             } else {
-                // STUDENT/LECTURER tạo project → họ là owner, status PENDING
                 project.setOwner(currentUser);
                 project.setStatus(ProjectStatus.PENDING);
                 System.out.println("✅ " + roleName + " created project: " + dto.getName()
@@ -287,8 +282,6 @@ public class ProjectService {
 
             projectRepository.save(project);
 
-            // ⭐ CHỈ invite members nếu KHÔNG PHẢI ADMIN/DEAN
-            // Vì ADMIN/DEAN tạo project ARCHIVED, chưa có owner để invite
             if (!isAdminOrDean && dto.getInvitedEmails() != null && !dto.getInvitedEmails().isEmpty()) {
                 inviteMembers(project, dto.getInvitedEmails(), currentUser);
             }
@@ -498,11 +491,11 @@ public class ProjectService {
                 ? p.getCreateDate().toInstant()
                 : null;
 
+        // ✅ SỬA TẠI ĐÂY - THÊM true
         boolean hasFinalReport = milestoneRepository
                 .findFirstByProjectIdAndIsFinalOrderByIdDesc(p.getId(), true)
                 .isPresent();
 
-        // ⭐⭐⭐ FIX NULL OWNER ⭐⭐⭐
         Integer ownerId = null;
         String ownerName = null;
         String ownerEmail = null;
@@ -516,7 +509,6 @@ public class ProjectService {
                     ? p.getOwner().getRole().getRoleName()
                     : null;
         }
-        // ✅ Nếu owner = NULL → Các field = NULL
 
         return ProjectResponse.builder()
                 .id(p.getId())
@@ -525,7 +517,6 @@ public class ProjectService {
                 .type(p.getType())
                 .dueDate(dueDate)
 
-                // Owner info - CÓ THỂ NULL
                 .ownerId(ownerId)
                 .ownerName(ownerName)
                 .ownerEmail(ownerEmail)
@@ -568,7 +559,6 @@ public class ProjectService {
                     .filter(pm -> "STUDENT".equalsIgnoreCase(pm.getMemberRole()))
                     .collect(Collectors.toList());
 
-            // ⭐⭐⭐ FIX NULL OWNER ⭐⭐⭐
             ProjectDetailResponse.OwnerInfo ownerInfo = null;
 
             if (project.getOwner() != null) {
@@ -580,7 +570,6 @@ public class ProjectService {
                                 project.getOwner().getRole().getRoleName() : null)
                         .build();
             }
-            // ✅ Nếu owner = NULL → ownerInfo = NULL (OK cho ARCHIVED projects)
 
             ProjectDetailResponse.LecturerInfo lecturerInfo = null;
             if (lecturerMember.isPresent()) {
@@ -649,7 +638,7 @@ public class ProjectService {
                     .status(project.getStatus())
                     .createDate(project.getCreateDate())
                     .dueDate(project.getDueDate())
-                    .owner(ownerInfo)  // ⭐ CÓ THỂ NULL
+                    .owner(ownerInfo)
                     .lecturer(lecturerInfo)
                     .members(membersInfo)
                     .files(filesInfo)
@@ -700,6 +689,7 @@ public class ProjectService {
                 Project project = pc.getProject();
                 Council council = pc.getCouncil();
 
+                // ✅ SỬA TẠI ĐÂY - THÊM true
                 Optional<Milestone> finalMilestoneOpt =
                         milestoneRepository.findFirstByProjectIdAndIsFinalOrderByIdDesc(project.getId(), true);
 
@@ -802,12 +792,11 @@ public class ProjectService {
         try {
             Account lecturer = getCurrentAccount(authentication);
 
-            // Lấy final milestone của project
+            // ✅ SỬA TẠI ĐÂY - THÊM true
             Milestone finalMilestone = milestoneRepository
                     .findFirstByProjectIdAndIsFinalOrderByIdDesc(projectId, true)
                     .orElseThrow(() -> new RuntimeException("Final milestone not found for this project"));
 
-            // Lấy điểm mà giảng viên này đã chấm cho final milestone đó
             List<ProjectScore> scores = projectScoreRepository
                     .findByFinalMilestoneId(finalMilestone.getId()).stream()
                     .filter(score -> score.getLecturer().getId().equals(lecturer.getId()))
@@ -826,18 +815,15 @@ public class ProjectService {
                     .projectId(myScore.getProject().getId())
                     .projectName(myScore.getProject().getName())
 
-                    // final milestone
                     .finalMilestoneId(finalMilestone.getId())
                     .reportFilePath(finalMilestone.getReportUrl())
                     .reportSubmissionDate(finalMilestone.getReportSubmittedAt() != null
                             ? sdf.format(finalMilestone.getReportSubmittedAt())
                             : null)
 
-                    // lecturer
                     .lecturerId(myScore.getLecturer().getId())
                     .lecturerName(myScore.getLecturer().getName())
 
-                    // scores
                     .criteria1Score(myScore.getCriteria1Score())
                     .criteria2Score(myScore.getCriteria2Score())
                     .criteria3Score(myScore.getCriteria3Score())
@@ -872,7 +858,6 @@ public class ProjectService {
         try {
             Account currentUser = currentAccount(authentication);
 
-
             if (currentUser.getRole() == null) {
                 return ResponseDto.fail("User role not found");
             }
@@ -890,16 +875,13 @@ public class ProjectService {
                 return ResponseDto.fail("This project is not available for picking");
             }
 
-            // Set owner (STUDENT hoặc LECTURER)
             project.setOwner(currentUser);
             project.setStatus(ProjectStatus.PENDING);
 
-            // Update description nếu có
             if (request.getDescription() != null) {
                 project.setDescription(request.getDescription());
             }
 
-            // Update files nếu có
             if (request.getFiles() != null && !request.getFiles().isEmpty()) {
                 project.getFiles().clear();
                 for (PickProjectRequest.FileDto f : request.getFiles()) {
@@ -911,7 +893,6 @@ public class ProjectService {
                 }
             }
 
-            // Update images nếu có
             if (request.getImages() != null && !request.getImages().isEmpty()) {
                 project.getImages().clear();
                 for (PickProjectRequest.ImageDto i : request.getImages()) {
@@ -947,14 +928,12 @@ public class ProjectService {
 
             Account currentUser = currentAccount(authentication);
 
-            // ⭐ CHECK ROLE: ADMIN/DEAN vs STUDENT/LECTURER
             String roleName = currentUser.getRole() != null
                     ? currentUser.getRole().getRoleName()
                     : "";
             boolean isAdminOrDean = "ADMIN".equalsIgnoreCase(roleName)
                     || "DEAN".equalsIgnoreCase(roleName);
 
-            // Parse header
             Map<String, Integer> headerMap = new HashMap<>();
             if (rows.hasNext()) {
                 Row headerRow = rows.next();
@@ -968,7 +947,6 @@ public class ProjectService {
                 return ResponseDto.fail("Missing required column: name");
             }
 
-            // Parse data rows
             while (rows.hasNext()) {
                 Row row = rows.next();
 
@@ -979,27 +957,16 @@ public class ProjectService {
                 project.setName(name);
                 project.setCreateDate(new Date());
 
-                // ⭐⭐⭐ LOGIC MỚI: ADMIN/DEAN vs STUDENT/LECTURER ⭐⭐⭐
                 if (isAdminOrDean) {
-                    // ========== ADMIN/DEAN IMPORT ==========
-                    // → owner = NULL (chưa có người nhận)
-                    // → status = ARCHIVED (để STUDENT pick)
                     project.setOwner(null);
                     project.setStatus(ProjectStatus.ARCHIVED);
-
                     System.out.println("✅ ADMIN/DEAN imported project: " + name + " (ARCHIVED, no owner)");
-
                 } else {
-                    // ========== STUDENT/LECTURER IMPORT ==========
-                    // → owner = currentUser (họ là owner)
-                    // → status = PENDING (bình thường)
                     project.setOwner(currentUser);
                     project.setStatus(ProjectStatus.PENDING);
-
                     System.out.println("✅ " + roleName + " imported project: " + name + " (PENDING, owner: " + currentUser.getEmail() + ")");
                 }
 
-                // ========== PARSE OTHER FIELDS ==========
                 if (headerMap.containsKey("description")) {
                     project.setDescription(getCellValue(row.getCell(headerMap.get("description"))));
                 }
@@ -1019,8 +986,6 @@ public class ProjectService {
                     }
                 }
 
-                // ⚠️ STATUS từ Excel chỉ áp dụng cho STUDENT/LECTURER
-                // ADMIN/DEAN luôn force ARCHIVED
                 if (!isAdminOrDean && headerMap.containsKey("status")) {
                     project.setStatus(parseStatus(row.getCell(headerMap.get("status"))));
                 }
@@ -1034,7 +999,6 @@ public class ProjectService {
 
             projectRepository.saveAll(projects);
 
-            // Convert to DTO
             List<ProjectImportDto> result = projects.stream()
                     .map(this::toImportDto)
                     .toList();
@@ -1123,16 +1087,10 @@ public class ProjectService {
         return currentAccount(authentication);
     }
 
-
-    /**
-     * API cho user (cả student và lecturer) xem final report của các project mà họ tham gia
-     * Bao gồm cả owner và member
-     */
     public ResponseDto<List<MyProjectReviewDto>> getMyProjectsWithFinalReport(Authentication authentication) {
         try {
             Account currentUser = getCurrentAccount(authentication);
 
-            // Lấy tất cả projects mà user này là owner hoặc là member
             Set<Integer> projectIds = getMyProjectIds(currentUser.getId());
 
             if (projectIds.isEmpty()) {
@@ -1145,17 +1103,16 @@ public class ProjectService {
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
             for (Project project : myProjects) {
-                // ========== Chỉ lấy những project có final milestone ==========
+                // ✅ SỬA TẠI ĐÂY - THÊM true
                 Optional<Milestone> finalMilestoneOpt =
                         milestoneRepository.findFirstByProjectIdAndIsFinalOrderByIdDesc(project.getId(), true);
 
                 if (!finalMilestoneOpt.isPresent()) {
-                    continue; // Skip nếu chưa có final milestone
+                    continue;
                 }
 
                 Milestone finalMilestone = finalMilestoneOpt.get();
 
-                // ========== Lấy thông tin council nếu có ==========
                 Optional<ProjectCouncil> projectCouncilOpt = projectCouncilRepository
                         .findAll().stream()
                         .filter(pc -> pc.getProject().getId().equals(project.getId()))
@@ -1165,18 +1122,15 @@ public class ProjectService {
                         ? projectCouncilOpt.get().getCouncil()
                         : null;
 
-                // ========== Lấy điểm trung bình và tổng số điểm ==========
                 Double avgScore = projectScoreRepository
                         .getAverageScoreByFinalReportId(finalMilestone.getId());
 
                 List<ProjectScore> allScores = projectScoreRepository
                         .findByFinalMilestoneId(finalMilestone.getId());
 
-                // ========== Lấy thông tin members ==========
                 List<ProjectMember> projectMembers = projectMemberRepository
                         .findByProjectId(project.getId());
 
-                // Lấy thông tin lecturer mentor
                 Optional<ProjectMember> lecturerMember = projectMembers.stream()
                         .filter(pm -> "LECTURER".equalsIgnoreCase(pm.getMemberRole()))
                         .findFirst();
@@ -1193,14 +1147,12 @@ public class ProjectService {
                         .filter(pm -> "Pending".equals(pm.getStatus()))
                         .count();
 
-                // ========== Xác định role của user hiện tại trong project ==========
                 String myRoleInProject = "MEMBER";
                 Integer myMemberId = null;
 
                 if (project.getOwner().getId().equals(currentUser.getId())) {
                     myRoleInProject = "OWNER";
                 } else {
-                    // Tìm trong danh sách members
                     Optional<ProjectMember> myMember = projectMembers.stream()
                             .filter(pm -> pm.getAccount().getId().equals(currentUser.getId()))
                             .findFirst();
@@ -1209,7 +1161,6 @@ public class ProjectService {
                     }
                 }
 
-                // ========== Lấy danh sách giảng viên đã chấm điểm ==========
                 List<MyProjectReviewDto.LecturerScoreInfo> lecturerScores = new ArrayList<>();
                 for (ProjectScore score : allScores) {
                     MyProjectReviewDto.LecturerScoreInfo scoreInfo =
@@ -1238,14 +1189,12 @@ public class ProjectService {
                     lecturerScores.add(scoreInfo);
                 }
 
-                // ========== Lấy danh sách council members nếu có ==========
                 List<MyProjectReviewDto.CouncilMemberInfo> councilMembersList = new ArrayList<>();
                 if (council != null) {
                     List<CouncilMember> councilMembers = councilMemberRepository
                             .findByCouncilId(council.getId());
 
                     for (CouncilMember cm : councilMembers) {
-                        // Check xem giảng viên này đã chấm chưa
                         boolean hasScored = allScores.stream()
                                 .anyMatch(score -> score.getLecturer().getId().equals(cm.getLecturer().getId()));
 
@@ -1262,7 +1211,6 @@ public class ProjectService {
                     }
                 }
 
-                // ========== Lấy danh sách members trong project ==========
                 List<MyProjectReviewDto.MemberInfo> membersList = new ArrayList<>();
                 for (ProjectMember pm : projectMembers) {
                     MyProjectReviewDto.MemberInfo memberInfo =
@@ -1277,9 +1225,7 @@ public class ProjectService {
                     membersList.add(memberInfo);
                 }
 
-                // ========== Build DTO ==========
                 MyProjectReviewDto dto = MyProjectReviewDto.builder()
-                        // Project basic info
                         .projectId(project.getId())
                         .projectName(project.getName())
                         .projectDescription(project.getDescription())
@@ -1288,7 +1234,6 @@ public class ProjectService {
                         .projectCreateDate(project.getCreateDate())
                         .projectDueDate(project.getDueDate())
 
-                        // Owner info
                         .ownerId(project.getOwner().getId())
                         .ownerName(project.getOwner().getName())
                         .ownerEmail(project.getOwner().getEmail())
@@ -1296,11 +1241,9 @@ public class ProjectService {
                                 ? project.getOwner().getRole().getRoleName()
                                 : null)
 
-                        // My role in this project
                         .myRoleInProject(myRoleInProject)
                         .myMemberId(myMemberId)
 
-                        // Final milestone info
                         .finalMilestoneId(finalMilestone.getId())
                         .reportTitle("Final Milestone Report")
                         .reportDescription(finalMilestone.getReportComment())
@@ -1312,14 +1255,12 @@ public class ProjectService {
                                 ? finalMilestone.getReportSubmittedBy().getName()
                                 : null)
 
-                        // Council info
                         .councilId(council != null ? council.getId() : null)
                         .councilName(council != null ? council.getCouncilName() : null)
                         .councilCode(council != null ? council.getCouncilCode() : null)
                         .councilDepartment(council != null ? council.getDepartment() : null)
                         .councilMembers(councilMembersList)
 
-                        // Lecturer mentor info
                         .hasLecturerMentor(lecturerMember.isPresent() &&
                                 "Approved".equals(lecturerMember.get().getStatus()))
                         .lecturerMentorId(lecturerMember.isPresent()
@@ -1335,14 +1276,12 @@ public class ProjectService {
                                 ? lecturerMember.get().getStatus()
                                 : null)
 
-                        // Scoring info
                         .hasBeenScored(!allScores.isEmpty())
                         .averageScore(avgScore != null ? avgScore : 0.0)
                         .totalScores(allScores.size())
                         .expectedTotalScores(councilMembersList.size())
                         .lecturerScores(lecturerScores)
 
-                        // Member statistics
                         .totalMembers(projectMembers.size())
                         .totalStudents(studentMembers.size())
                         .approvedStudents((int) approvedStudents)
@@ -1354,13 +1293,10 @@ public class ProjectService {
                 result.add(dto);
             }
 
-            // ========== Sort by scoring status and due date ==========
             result.sort((a, b) -> {
-                // Projects đã có điểm lên trước
                 if (a.getHasBeenScored() != b.getHasBeenScored()) {
                     return a.getHasBeenScored() ? -1 : 1;
                 }
-                // Sau đó sort theo due date (gần nhất lên trước)
                 if (a.getProjectDueDate() != null && b.getProjectDueDate() != null) {
                     return a.getProjectDueDate().compareTo(b.getProjectDueDate());
                 }
@@ -1375,21 +1311,15 @@ public class ProjectService {
         }
     }
 
-    /**
-     * API: GET /api/projects/mentoring
-     * Lecturer xem các projects mà mình đang mentor
-     */
     public ResponseDto<List<MentoringProjectDto>> getMyMentoringProjects(Authentication authentication) {
         try {
             Account lecturer = getCurrentAccount(authentication);
 
-            // Kiểm tra role
             if (lecturer.getRole() == null ||
                     !"LECTURER".equalsIgnoreCase(lecturer.getRole().getRoleName())) {
                 return ResponseDto.fail("Only lecturers can access this endpoint");
             }
 
-            // Tìm tất cả projects mà lecturer này là mentor (member với role LECTURER)
             List<ProjectMember> mentoringMembers = projectMemberRepository
                     .findByAccountId(lecturer.getId()).stream()
                     .filter(pm -> "LECTURER".equalsIgnoreCase(pm.getMemberRole()))
@@ -1400,13 +1330,11 @@ public class ProjectService {
                         "You are not mentoring any projects");
             }
 
-            // Build response
             List<MentoringProjectDto> result = new ArrayList<>();
 
             for (ProjectMember pm : mentoringMembers) {
                 Project project = pm.getProject();
 
-                // Lấy danh sách students trong project
                 List<ProjectMember> studentMembers = projectMemberRepository
                         .findByProjectId(project.getId()).stream()
                         .filter(m -> "STUDENT".equalsIgnoreCase(m.getMemberRole()))
@@ -1420,7 +1348,7 @@ public class ProjectService {
                         .filter(m -> "Pending".equals(m.getStatus()))
                         .count();
 
-                // Lấy final milestone (nếu có)
+                // ✅ SỬA TẠI ĐÂY - THÊM true
                 Optional<Milestone> finalMilestoneOpt = milestoneRepository
                         .findFirstByProjectIdAndIsFinalOrderByIdDesc(project.getId(), true);
 
@@ -1429,14 +1357,12 @@ public class ProjectService {
                         ? finalMilestoneOpt.get().getReportUrl()
                         : null;
 
-                // Lấy average score (nếu đã có điểm)
                 Double avgScore = null;
                 if (hasFinalReport) {
                     avgScore = projectScoreRepository.getAverageScoreByFinalReportId(
                             finalMilestoneOpt.get().getId());
                 }
 
-                // Lấy danh sách students với thông tin chi tiết
                 List<MentoringProjectDto.StudentInfo> students = studentMembers.stream()
                         .map(sm -> MentoringProjectDto.StudentInfo.builder()
                                 .projectMemberId(sm.getId())
@@ -1447,7 +1373,6 @@ public class ProjectService {
                                 .build())
                         .collect(Collectors.toList());
 
-                // Lấy tất cả milestones
                 List<Milestone> milestones = milestoneRepository
                         .findByProjectId(project.getId());
 
@@ -1455,9 +1380,7 @@ public class ProjectService {
                         .filter(m -> "Completed".equalsIgnoreCase(m.getStatus()))
                         .count();
 
-                // Build DTO
                 MentoringProjectDto dto = MentoringProjectDto.builder()
-                        // Project info
                         .projectId(project.getId())
                         .projectName(project.getName())
                         .projectDescription(project.getDescription())
@@ -1468,7 +1391,6 @@ public class ProjectService {
                         .projectCreateDate(project.getCreateDate())
                         .projectDueDate(project.getDueDate())
 
-                        // Owner info
                         .ownerId(project.getOwner().getId())
                         .ownerName(project.getOwner().getName())
                         .ownerEmail(project.getOwner().getEmail())
@@ -1476,7 +1398,6 @@ public class ProjectService {
                                 ? project.getOwner().getRole().getRoleName()
                                 : null)
 
-                        // Major info
                         .majorId(project.getMajor() != null
                                 ? project.getMajor().getId()
                                 : null)
@@ -1484,23 +1405,19 @@ public class ProjectService {
                                 ? project.getMajor().getName()
                                 : null)
 
-                        // Mentoring info
                         .projectMemberId(pm.getId())
-                        .mentoringStatus(pm.getStatus())  // Approved, Pending, Rejected
+                        .mentoringStatus(pm.getStatus())
 
-                        // Students info
                         .students(students)
                         .totalStudents(studentMembers.size())
                         .approvedStudents((int) approvedStudents)
                         .pendingStudents((int) pendingStudents)
 
-                        // Milestones info
                         .totalMilestones(milestones.size())
                         .completedMilestones((int) completedMilestones)
                         .hasFinalReport(hasFinalReport)
                         .finalReportUrl(finalReportUrl)
 
-                        // Scoring info
                         .averageScore(avgScore)
                         .hasBeenScored(avgScore != null)
 
@@ -1509,20 +1426,16 @@ public class ProjectService {
                 result.add(dto);
             }
 
-            // Sort: Approved projects first, then by due date
             result.sort((a, b) -> {
-                // Approved lên trước
                 if (!a.getMentoringStatus().equals(b.getMentoringStatus())) {
                     return "Approved".equals(a.getMentoringStatus()) ? -1 : 1;
                 }
-                // Sort by due date (gần nhất lên trước)
                 if (a.getProjectDueDate() != null && b.getProjectDueDate() != null) {
                     return a.getProjectDueDate().compareTo(b.getProjectDueDate());
                 }
                 return 0;
             });
 
-            // Statistics
             long approved = result.stream()
                     .filter(p -> "Approved".equals(p.getMentoringStatus()))
                     .count();

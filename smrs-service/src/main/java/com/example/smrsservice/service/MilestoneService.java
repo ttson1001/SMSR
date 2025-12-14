@@ -154,10 +154,11 @@ public class MilestoneService {
 
     /**
      * Lấy final milestone của project
+     * ✅ THAY ĐỔI: Dùng method với 2 tham số
      */
     public MilestoneResponseDto getFinalMilestone(Integer projectId) {
         Milestone milestone = milestoneRepository
-                .findFirstByProjectIdAndIsFinalTrueOrderByIdDesc(projectId)
+                .findFirstByProjectIdAndIsFinalOrderByIdDesc(projectId, true)  // ✅ THÊM true
                 .orElseThrow(() -> new RuntimeException("Final milestone not found for this project"));
 
         return mapToDto(milestone);
