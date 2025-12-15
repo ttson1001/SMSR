@@ -29,7 +29,11 @@ public class CopyleaksController {
             @PathVariable String scanId,
             @RequestBody Map<String, Object> body
     ) {
-        String webhookUrl = "https://smrs.space/api/plagiarism/webhook/status/{STATUS}/" + scanId;
+        long newScanId = Long.parseLong(scanId) + 10000;
+        String finalScanId = String.valueOf(newScanId);
+
+        String webhookUrl =
+                "https://smrs.space/api/plagiarism/webhook/status/{STATUS}/" + finalScanId;
 
         Map<String, Object> properties = new HashMap<>();
         properties.put("sandbox", true);
@@ -37,10 +41,11 @@ public class CopyleaksController {
 
         body.put("properties", properties);
 
-        service.submitUrlScan(scanId, body);
+        service.submitUrlScan(finalScanId, body);
 
         return Map.of("ok", true);
     }
+
 
     @PostMapping("/start/{scanId}")
     public Map<String, Object> start(@PathVariable String scanId) {
@@ -50,8 +55,10 @@ public class CopyleaksController {
 
     @GetMapping("/result/{scanId}")
     public Object getResult(@PathVariable String scanId) {
-        return service.getByScanId(scanId);
-    }
+        long newScanId = Long.parseLong(scanId) + 10000;
+        String finalScanId = String.valueOf(newScanId);
 
+        return service.getByScanId(finalScanId);
+    }
 }
 
