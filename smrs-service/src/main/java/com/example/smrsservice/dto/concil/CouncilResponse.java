@@ -27,6 +27,8 @@ public class CouncilResponse {
 
     private List<MemberInfo> members;
     private Integer totalProjects;
+    private Integer assignedProjectId;
+    private String assignedProjectName;
 
 
 

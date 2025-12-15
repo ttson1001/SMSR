@@ -2,10 +2,7 @@ package com.example.smrsservice.controller;
 
 import com.example.smrsservice.dto.account.PageResponse;
 import com.example.smrsservice.dto.common.ResponseDto;
-import com.example.smrsservice.dto.concil.CouncilResponse;
-import com.example.smrsservice.dto.concil.CreateCouncilRequest;
-import com.example.smrsservice.dto.concil.DeanDecisionRequest;
-import com.example.smrsservice.dto.concil.ProjectCouncilDto;
+import com.example.smrsservice.dto.concil.*;
 import com.example.smrsservice.service.CouncilService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -197,6 +194,32 @@ public class CouncilController {
         } else {
             return ResponseEntity.badRequest().body(response);
         }
+    }
+
+    /**
+     * 8. Lấy danh sách projects có Final Report (chờ tạo hội đồng)
+     * GET /api/councils/projects-ready-for-council
+     */
+    @GetMapping("/projects-ready-for-council")
+    public ResponseEntity<ResponseDto<List<ProjectReadyForCouncilDto>>> getProjectsReadyForCouncil(
+            Authentication authentication) {
+        return ResponseEntity.ok(councilService.getProjectsReadyForCouncil(authentication));
+    }
+
+    /**
+     * 9. Tạo hội đồng VÀ assign project vào luôn
+     * POST /api/councils/create-with-project
+     */
+    @PostMapping("/create-with-project")
+    public ResponseEntity<ResponseDto<CouncilResponse>> createCouncilAndAssignProject(
+            @RequestBody CreateCouncilWithProjectRequest request,
+            Authentication authentication) {
+        ResponseDto<CouncilResponse> response = councilService.createCouncilAndAssignProject(
+                request, authentication
+        );
+        return ResponseEntity.status(
+                response.isSuccess() ? HttpStatus.CREATED : HttpStatus.BAD_REQUEST
+        ).body(response);
     }
 
 }

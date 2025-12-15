@@ -25,6 +25,8 @@ public interface ProjectRepository extends JpaRepository<Project, Integer>, JpaS
             String name, String description, Pageable pageable
     );
 
+    List<Project> findByStatus(ProjectStatus status);
+
     /**
      * Lấy projects theo status (pagination)
      */

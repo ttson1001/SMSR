@@ -4,10 +4,7 @@ import com.example.smrsservice.common.DecisionStatus;
 import com.example.smrsservice.common.ProjectStatus;
 import com.example.smrsservice.dto.account.PageResponse;
 import com.example.smrsservice.dto.common.ResponseDto;
-import com.example.smrsservice.dto.concil.CouncilResponse;
-import com.example.smrsservice.dto.concil.CreateCouncilRequest;
-import com.example.smrsservice.dto.concil.DeanDecisionRequest;
-import com.example.smrsservice.dto.concil.ProjectCouncilDto;
+import com.example.smrsservice.dto.concil.*;
 import com.example.smrsservice.entity.*;
 import com.example.smrsservice.repository.*;
 import jakarta.persistence.criteria.Predicate;
@@ -36,6 +33,8 @@ public class CouncilService {
     private final ProjectRepository projectRepository;
     private final ProjectCouncilRepository projectCouncilRepository;
     private final LecturerProfileRepository lecturerProfileRepository;
+    private final MilestoneRepository milestoneRepository;
+
 
     /**
      * 1. Trưởng khoa tạo hội đồng
@@ -804,6 +803,270 @@ public class CouncilService {
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
+    }
+
+    /**
+     * 8. Lấy danh sách projects có Final Report nhưng chưa được assign vào hội đồng nào
+     * Để Dean biết project nào cần tạo hội đồng chấm điểm
+     */
+    public ResponseDto<List<ProjectReadyForCouncilDto>> getProjectsReadyForCouncil(Authentication authentication) {
+        try {
+            Account currentUser = getCurrentAccount(authentication);
+
+            // Chỉ DEAN mới được xem
+            if (!"DEAN".equalsIgnoreCase(currentUser.getRole().getRoleName())) {
+                return ResponseDto.fail("Only deans can access this endpoint");
+            }
+
+            // Lấy tất cả projects đã APPROVED và có Final Report
+            List<Project> approvedProjects = projectRepository.findByStatus(ProjectStatus.APPROVED);
+
+            List<ProjectReadyForCouncilDto> result = new ArrayList<>();
+
+            for (Project project : approvedProjects) {
+                // Kiểm tra có Final Report chưa
+                Optional<Milestone> finalMilestoneOpt = milestoneRepository
+                        .findFirstByProjectIdAndIsFinalOrderByIdDesc(project.getId(), true);
+
+                if (finalMilestoneOpt.isEmpty()) {
+                    continue; // Chưa có final report → skip
+                }
+
+                Milestone finalMilestone = finalMilestoneOpt.get();
+
+                // Kiểm tra đã được assign vào council nào chưa
+                List<ProjectCouncil> existingAssignments = projectCouncilRepository
+                        .findByProjectId(project.getId());
+
+                boolean alreadyAssigned = !existingAssignments.isEmpty();
+
+                // Lấy thông tin owner
+                Integer ownerId = null;
+                String ownerName = null;
+                String ownerEmail = null;
+                String ownerRole = null;
+
+                if (project.getOwner() != null) {
+                    ownerId = project.getOwner().getId();
+                    ownerName = project.getOwner().getName();
+                    ownerEmail = project.getOwner().getEmail();
+                    ownerRole = project.getOwner().getRole() != null
+                            ? project.getOwner().getRole().getRoleName()
+                            : null;
+                }
+
+                // Lấy thông tin council nếu đã assign
+                Integer assignedCouncilId = null;
+                String assignedCouncilName = null;
+                String assignedCouncilCode = null;
+
+                if (alreadyAssigned) {
+                    ProjectCouncil pc = existingAssignments.get(0);
+                    assignedCouncilId = pc.getCouncil().getId();
+                    assignedCouncilName = pc.getCouncil().getCouncilName();
+                    assignedCouncilCode = pc.getCouncil().getCouncilCode();
+                }
+
+                ProjectReadyForCouncilDto dto = ProjectReadyForCouncilDto.builder()
+                        .projectId(project.getId())
+                        .projectName(project.getName())
+                        .projectDescription(project.getDescription())
+                        .projectType(project.getType())
+                        .projectStatus(project.getStatus().toString())
+                        .projectCreateDate(project.getCreateDate())
+                        .projectDueDate(project.getDueDate())
+
+                        // Owner info
+                        .ownerId(ownerId)
+                        .ownerName(ownerName)
+                        .ownerEmail(ownerEmail)
+                        .ownerRole(ownerRole)
+
+                        // Major info
+                        .majorId(project.getMajor() != null ? project.getMajor().getId() : null)
+                        .majorName(project.getMajor() != null ? project.getMajor().getName() : null)
+
+                        // Final Report info
+                        .hasFinalReport(true)
+                        .finalMilestoneId(finalMilestone.getId())
+                        .reportUrl(finalMilestone.getReportUrl())
+                        .reportSubmittedAt(finalMilestone.getReportSubmittedAt())
+                        .reportSubmittedBy(finalMilestone.getReportSubmittedBy() != null
+                                ? finalMilestone.getReportSubmittedBy().getName()
+                                : null)
+
+                        // Council assignment info
+                        .alreadyAssignedToCouncil(alreadyAssigned)
+                        .assignedCouncilId(assignedCouncilId)
+                        .assignedCouncilName(assignedCouncilName)
+                        .assignedCouncilCode(assignedCouncilCode)
+
+                        .build();
+
+                result.add(dto);
+            }
+
+            // Sort: Chưa assign lên trước
+            result.sort((a, b) -> {
+                if (a.getAlreadyAssignedToCouncil() != b.getAlreadyAssignedToCouncil()) {
+                    return a.getAlreadyAssignedToCouncil() ? 1 : -1;
+                }
+                return 0;
+            });
+
+            long notAssignedCount = result.stream()
+                    .filter(p -> !p.getAlreadyAssignedToCouncil())
+                    .count();
+
+            String message = String.format(
+                    "Found %d project(s) with final report. %d not yet assigned to council.",
+                    result.size(), notAssignedCount
+            );
+
+            return ResponseDto.success(result, message);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * 9. Tạo hội đồng VÀ assign project vào hội đồng luôn
+     * Flow: Dean chọn project có final report → Tạo hội đồng → Assign project vào
+     */
+    @Transactional
+    public ResponseDto<CouncilResponse> createCouncilAndAssignProject(
+            CreateCouncilWithProjectRequest request,
+            Authentication authentication) {
+        try {
+            Account currentUser = getCurrentAccount(authentication);
+
+            // Kiểm tra role DEAN
+            if (!"DEAN".equalsIgnoreCase(currentUser.getRole().getRoleName())) {
+                return ResponseDto.fail("Only deans can create councils");
+            }
+
+            // Lấy dean profile
+            CouncilManagerProfile deanProfile = councilProfileRepository
+                    .findByAccountId(currentUser.getId())
+                    .orElseThrow(() -> new RuntimeException("Dean profile not found"));
+
+            // Kiểm tra project tồn tại
+            Project project = projectRepository.findById(request.getProjectId())
+                    .orElseThrow(() -> new RuntimeException("Project not found"));
+
+            // Kiểm tra project có final report chưa
+            Optional<Milestone> finalMilestoneOpt = milestoneRepository
+                    .findFirstByProjectIdAndIsFinalOrderByIdDesc(project.getId(), true);
+
+            if (finalMilestoneOpt.isEmpty()) {
+                return ResponseDto.fail("Project must have a final report before creating council");
+            }
+
+            // Kiểm tra project đã được assign vào council khác chưa
+            List<ProjectCouncil> existingAssignments = projectCouncilRepository
+                    .findByProjectId(project.getId());
+
+            if (!existingAssignments.isEmpty()) {
+                return ResponseDto.fail("Project already assigned to council: " +
+                        existingAssignments.get(0).getCouncil().getCouncilCode());
+            }
+
+            // Kiểm tra council code đã tồn tại chưa
+            if (councilRepository.findByCouncilCode(request.getCouncilCode()).isPresent()) {
+                return ResponseDto.fail("Council code already exists");
+            }
+
+            // ========== TẠO COUNCIL ==========
+            Council council = new Council();
+            council.setCouncilCode(request.getCouncilCode());
+            council.setCouncilName(request.getCouncilName());
+            council.setDepartment(request.getDepartment());
+            council.setDescription(request.getDescription());
+            council.setDean(deanProfile);
+            council.setStatus("ACTIVE");
+
+            councilRepository.save(council);
+
+            // ========== ASSIGN LECTURERS ==========
+            int assignedCount = 0;
+            List<String> notFoundEmails = new ArrayList<>();
+            List<String> notLecturerEmails = new ArrayList<>();
+
+            if (request.getLecturerEmails() != null && !request.getLecturerEmails().isEmpty()) {
+                for (String email : request.getLecturerEmails()) {
+                    try {
+                        Optional<Account> lecturerOpt = accountRepository.findByEmail(email.trim());
+
+                        if (lecturerOpt.isEmpty()) {
+                            notFoundEmails.add(email);
+                            continue;
+                        }
+
+                        Account lecturer = lecturerOpt.get();
+
+                        if (!"LECTURER".equalsIgnoreCase(lecturer.getRole().getRoleName())) {
+                            notLecturerEmails.add(email);
+                            continue;
+                        }
+
+                        if (councilMemberRepository.existsByCouncilIdAndLecturerId(
+                                council.getId(), lecturer.getId())) {
+                            continue;
+                        }
+
+                        CouncilMember member = new CouncilMember();
+                        member.setCouncil(council);
+                        member.setLecturer(lecturer);
+                        member.setRole("Member");
+                        member.setStatus("ACTIVE");
+                        councilMemberRepository.save(member);
+                        assignedCount++;
+
+                    } catch (Exception e) {
+                        System.err.println("Error adding lecturer " + email + ": " + e.getMessage());
+                    }
+                }
+            }
+
+            // ========== ASSIGN PROJECT VÀO COUNCIL ==========
+            ProjectCouncil projectCouncil = new ProjectCouncil();
+            projectCouncil.setProject(project);
+            projectCouncil.setCouncil(council);
+            projectCouncil.setDecision(DecisionStatus.PENDING);
+            projectCouncilRepository.save(projectCouncil);
+
+            // Update project status
+            project.setStatus(ProjectStatus.IN_REVIEW);
+            projectRepository.save(project);
+
+            System.out.println("✅ Council " + council.getCouncilCode() + " created with " +
+                    assignedCount + " member(s) and project " + project.getName() + " assigned");
+
+            // Build response message
+            StringBuilder message = new StringBuilder();
+            message.append("Council created and project assigned successfully");
+            if (assignedCount > 0) {
+                message.append(". ").append(assignedCount).append(" lecturer(s) added");
+            }
+            if (!notFoundEmails.isEmpty()) {
+                message.append(". ⚠️ Email not found: ").append(String.join(", ", notFoundEmails));
+            }
+            if (!notLecturerEmails.isEmpty()) {
+                message.append(". ⚠️ Not lecturer: ").append(String.join(", ", notLecturerEmails));
+            }
+
+            CouncilResponse response = buildCouncilResponse(council);
+            response.setAssignedProjectId(project.getId());
+            response.setAssignedProjectName(project.getName());
+
+            return ResponseDto.success(response, message.toString());
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseDto.fail(e.getMessage());
+        }
     }
 
 
