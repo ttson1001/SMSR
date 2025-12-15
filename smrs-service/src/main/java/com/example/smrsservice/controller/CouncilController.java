@@ -222,4 +222,13 @@ public class CouncilController {
         ).body(response);
     }
 
+    @PostMapping("/{councilId}/assign-project/{projectId}")
+    public ResponseEntity<ResponseDto<ProjectCouncilDto>> assignProjectToExistingCouncil(
+            @PathVariable Integer councilId,
+            @PathVariable Integer projectId,
+            Authentication authentication) {
+        return ResponseEntity.ok(
+                councilService.assignProjectToExistingCouncil(projectId, councilId, authentication)
+        );
+    }
 }

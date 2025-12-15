@@ -1069,5 +1069,76 @@ public class CouncilService {
         }
     }
 
+    /**
+     * 10. Assign project vào hội đồng có sẵn (đơn giản)
+     * Dean chỉ cần truyền projectId và councilId
+     */
+    @Transactional
+    public ResponseDto<ProjectCouncilDto> assignProjectToExistingCouncil(
+            Integer projectId,
+            Integer councilId,
+            Authentication authentication) {
+        try {
+            Account currentUser = getCurrentAccount(authentication);
+
+            // Kiểm tra role DEAN
+            if (!"DEAN".equalsIgnoreCase(currentUser.getRole().getRoleName())) {
+                return ResponseDto.fail("Only deans can assign projects to councils");
+            }
+
+            // Kiểm tra project tồn tại
+            Project project = projectRepository.findById(projectId)
+                    .orElseThrow(() -> new RuntimeException("Project not found"));
+
+            // Kiểm tra council tồn tại
+            Council council = councilRepository.findById(councilId)
+                    .orElseThrow(() -> new RuntimeException("Council not found"));
+
+            // Kiểm tra project có final report chưa
+            Optional<Milestone> finalMilestoneOpt = milestoneRepository
+                    .findFirstByProjectIdAndIsFinalOrderByIdDesc(project.getId(), true);
+
+            if (finalMilestoneOpt.isEmpty()) {
+                return ResponseDto.fail("Project must have a final report before assigning to council");
+            }
+
+            // Kiểm tra project đã được assign vào council này chưa
+            Optional<ProjectCouncil> existingAssignment = projectCouncilRepository
+                    .findByProjectIdAndCouncilId(projectId, councilId);
+
+            if (existingAssignment.isPresent()) {
+                return ResponseDto.fail("Project already assigned to this council");
+            }
+
+            // Kiểm tra project đã được assign vào council khác chưa
+            List<ProjectCouncil> otherAssignments = projectCouncilRepository.findByProjectId(projectId);
+            if (!otherAssignments.isEmpty()) {
+                return ResponseDto.fail("Project already assigned to another council: " +
+                        otherAssignments.get(0).getCouncil().getCouncilCode());
+            }
+
+            // ========== ASSIGN PROJECT VÀO COUNCIL ==========
+            ProjectCouncil projectCouncil = new ProjectCouncil();
+            projectCouncil.setProject(project);
+            projectCouncil.setCouncil(council);
+            projectCouncil.setDecision(DecisionStatus.PENDING);
+            projectCouncilRepository.save(projectCouncil);
+
+            // Update project status
+            project.setStatus(ProjectStatus.IN_REVIEW);
+            projectRepository.save(project);
+
+            System.out.println("✅ Project " + project.getName() + " assigned to council " + council.getCouncilCode());
+
+            ProjectCouncilDto dto = convertToDto(projectCouncil);
+
+            return ResponseDto.success(dto, "Project assigned to council successfully");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseDto.fail(e.getMessage());
+        }
+    }
+
 
 }
