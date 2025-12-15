@@ -630,6 +630,15 @@ public class ProjectService {
                     .hasLecturer(lecturerMember.isPresent())
                     .build();
 
+            // ✅ THÊM: Major info
+            ProjectDetailResponse.MajorInfo majorInfo = null;
+            if (project.getMajor() != null) {
+                majorInfo = ProjectDetailResponse.MajorInfo.builder()
+                        .id(project.getMajor().getId())
+                        .name(project.getMajor().getName())
+                        .build();
+            }
+
             ProjectDetailResponse response = ProjectDetailResponse.builder()
                     .id(project.getId())
                     .name(project.getName())
@@ -646,6 +655,7 @@ public class ProjectService {
                     .statistics(statistics)
                     .averageScore(avgScore != null ? avgScore : 0.0)
                     .totalScores(totalScores)
+                    .major(majorInfo)
                     .build();
 
             return ResponseDto.success(response, "Get project detail successfully");

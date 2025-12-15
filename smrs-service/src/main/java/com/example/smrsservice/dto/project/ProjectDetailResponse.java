@@ -28,6 +28,7 @@ public class ProjectDetailResponse {
     private List<FileInfo> files;
     private List<ImageInfo> images;
     private Statistics statistics;
+    private MajorInfo major;
 
 
     private Double averageScore;
@@ -101,5 +102,14 @@ public class ProjectDetailResponse {
         private Integer totalFiles;
         private Integer totalImages;
         private Boolean hasLecturer;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MajorInfo {
+        private Integer id;
+        private String name;
     }
 }
