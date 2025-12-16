@@ -1,6 +1,7 @@
 package com.example.smrsservice.security;
 
 
+import com.example.smrsservice.common.AccountStatus;
 import com.example.smrsservice.entity.Account;
 import com.example.smrsservice.repository.AccountRepository;
 import io.jsonwebtoken.JwtException;
@@ -49,6 +50,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         System.out.println("Account email: [" + account.getEmail() + "]");
                     }
                     System.out.println("============================");
+
+                    if (account != null && account.getStatus() == AccountStatus.LOCKED) {
+                        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                        response.setContentType("application/json;charset=UTF-8");
+                        response.getWriter().write("{\"error\":\"FORBIDDEN\",\"message\":\"Account is locked. Please contact administrator.\"}");
+                        return; // Dừng lại, không cho tiếp tục
+                    }
 
                     if (account != null && account.getRole() != null) {
                         List<SimpleGrantedAuthority> authorities =

@@ -55,6 +55,9 @@ public class AccountService {
         var acc = accountRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Email not found"));
 
+        if (acc.getStatus() == AccountStatus.LOCKED) {
+            throw new RuntimeException("Account is locked. Please contact administrator.");
+        }
 
         if (!passwordEncoder.matches(request.getPassword(), acc.getPassword())) {
             throw new RuntimeException("Invalid credentials");
