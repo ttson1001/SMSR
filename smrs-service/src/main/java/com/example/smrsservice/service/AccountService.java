@@ -17,6 +17,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -339,8 +340,8 @@ public class AccountService {
             String email,
             String role,
             AccountStatus status) {
-
-        Pageable pageable = PageRequest.of(page - 1, size);
+        
+        Pageable pageable = PageRequest.of(page - 1, size, Sort.by("createDate").descending());
 
         // Build Specification để filter
         Specification<Account> spec = buildAccountSpecification(name, email, role, status);
@@ -432,7 +433,6 @@ public class AccountService {
                 .data(responseList)
                 .build();
     }
-
     /**
      * ✅ UPDATED: Lấy id từ token thay vì path parameter
      * Sử dụng Authentication để lấy thông tin user hiện tại
