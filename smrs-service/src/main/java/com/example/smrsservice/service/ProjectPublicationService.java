@@ -207,9 +207,13 @@ public class ProjectPublicationService {
         try {
             Account currentUser = getCurrentAccount(authentication);
 
-            // Chỉ ADMIN mới xem được tất cả
-            if (!"ADMIN".equalsIgnoreCase(currentUser.getRole().getRoleName())) {
-                return ResponseDto.fail("Only admins can view all publications");
+            // ✅ SỬA: Cho phép cả ADMIN và DEAN
+            String roleName = currentUser.getRole() != null
+                    ? currentUser.getRole().getRoleName()
+                    : "";
+
+            if (!"ADMIN".equalsIgnoreCase(roleName) && !"DEAN".equalsIgnoreCase(roleName)) {
+                return ResponseDto.fail("Only admins and deans can view all publications");
             }
 
             List<ProjectPublication> publications = publicationRepository.findAll();
