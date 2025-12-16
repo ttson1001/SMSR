@@ -118,9 +118,15 @@ public class ProjectPublicationService {
             ProjectPublication publication = publicationRepository.findById(publicationId)
                     .orElseThrow(() -> new RuntimeException("Publication not found"));
 
-            // Chỉ author đăng ký mới được update
-            if (!publication.getAuthor().getId().equals(currentUser.getId())) {
-                return ResponseDto.fail("Only the author who registered can update this publication");
+            // ✅ SỬA: Cho phép author, ADMIN hoặc DEAN update
+            String roleName = currentUser.getRole() != null
+                    ? currentUser.getRole().getRoleName()
+                    : "";
+            boolean isAdminOrDean = "ADMIN".equalsIgnoreCase(roleName) || "DEAN".equalsIgnoreCase(roleName);
+            boolean isAuthor = publication.getAuthor().getId().equals(currentUser.getId());
+
+            if (!isAuthor && !isAdminOrDean) {
+                return ResponseDto.fail("Only the author, admin or dean can update this publication");
             }
 
             // Update fields
@@ -158,7 +164,8 @@ public class ProjectPublicationService {
 
             publicationRepository.save(publication);
 
-            System.out.println("✅ Publication updated: " + publication.getPublicationName());
+            System.out.println("✅ Publication updated: " + publication.getPublicationName() +
+                    " by " + currentUser.getEmail() + " (" + roleName + ")");
 
             ProjectPublicationDto dto = toDto(publication);
             return ResponseDto.success(dto, "Publication updated successfully");
@@ -183,14 +190,21 @@ public class ProjectPublicationService {
             ProjectPublication publication = publicationRepository.findById(publicationId)
                     .orElseThrow(() -> new RuntimeException("Publication not found"));
 
-            // Chỉ author đăng ký mới được xóa
-            if (!publication.getAuthor().getId().equals(currentUser.getId())) {
-                return ResponseDto.fail("Only the author who registered can delete this publication");
+            // ✅ SỬA: Cho phép author, ADMIN hoặc DEAN xóa
+            String roleName = currentUser.getRole() != null
+                    ? currentUser.getRole().getRoleName()
+                    : "";
+            boolean isAdminOrDean = "ADMIN".equalsIgnoreCase(roleName) || "DEAN".equalsIgnoreCase(roleName);
+            boolean isAuthor = publication.getAuthor().getId().equals(currentUser.getId());
+
+            if (!isAuthor && !isAdminOrDean) {
+                return ResponseDto.fail("Only the author, admin or dean can delete this publication");
             }
 
             publicationRepository.delete(publication);
 
-            System.out.println("✅ Publication deleted: " + publication.getPublicationName());
+            System.out.println("✅ Publication deleted: " + publication.getPublicationName() +
+                    " by " + currentUser.getEmail() + " (" + roleName + ")");
 
             return ResponseDto.success(null, "Publication deleted successfully");
 
