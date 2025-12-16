@@ -145,10 +145,17 @@ public class AccountService {
                 throw new RuntimeException("Missing required column: email");
             }
 
-            // Đọc data rows
+            // ⭐⭐⭐ THAY ĐỔI: ĐỌC TẤT CẢ ROWS VÀO LIST TRƯỚC
+            List<Row> dataRows = new ArrayList<>();
             while (rows.hasNext()) {
-                Row row = rows.next();
+                dataRows.add(rows.next());
+            }
 
+            // ⭐⭐⭐ ĐẢO NGƯỢC THỨ TỰ - Dòng cuối Excel xử lý trước
+            Collections.reverse(dataRows);
+
+            // ⭐⭐⭐ XỬ LÝ THEO THỨ TỰ NGƯỢC
+            for (Row row : dataRows) {
                 String email = getCellValue(row.getCell(headerMap.get("email")));
                 if (email == null || email.isBlank()) continue;
 
@@ -236,6 +243,8 @@ public class AccountService {
 
         return accounts;
     }
+
+
 
     /**
      * Xử lý tạo/update LecturerProfile
@@ -756,224 +765,6 @@ public class AccountService {
         };
     }
 
-    /**
-     * ⭐ IMPORT DEANS - Dedicated method for Dean import with full details
-     */
-    public ResponseDto<ImportDeanResult> importDeansFromExcel(MultipartFile file) {
-        try (InputStream is = file.getInputStream();
-             Workbook workbook = new XSSFWorkbook(is)) {
-
-            Sheet sheet = workbook.getSheetAt(0);
-            Iterator<Row> rows = sheet.iterator();
-
-            // ========== ĐỌC HEADER ==========
-            Map<String, Integer> headerMap = new HashMap<>();
-            if (rows.hasNext()) {
-                Row headerRow = rows.next();
-                for (Cell cell : headerRow) {
-                    String columnName = cell.getStringCellValue().trim().toLowerCase();
-                    headerMap.put(columnName, cell.getColumnIndex());
-                }
-            }
-
-            // ========== VALIDATE REQUIRED COLUMNS ==========
-            List<String> requiredColumns = List.of("email", "name", "majorid");
-            for (String col : requiredColumns) {
-                if (!headerMap.containsKey(col)) {
-                    return ResponseDto.fail("Missing required column: " + col);
-                }
-            }
-
-            // ========== ĐỌC DATA ==========
-            List<String> successEmails = new ArrayList<>();
-            List<String> failedEmails = new ArrayList<>();
-            List<String> errors = new ArrayList<>();
-
-            // ⭐ THÊM: List chứa dean details
-            List<ImportDeanResult.DeanDetail> successDeans = new ArrayList<>();
-
-            Role deanRole = roleRepository.findByRoleName("DEAN")
-                    .orElseThrow(() -> new RuntimeException("DEAN role not found"));
-
-            while (rows.hasNext()) {
-                Row row = rows.next();
-                String email = getCellValue(row.getCell(headerMap.get("email")));
-
-                if (email == null || email.isBlank()) continue;
-
-                try {
-                    // ⭐ THÊM: Biến track password generation
-                    String generatedPassword = null;
-                    boolean passwordGenerated = false;
-
-                    // ========== 1. TẠO/UPDATE ACCOUNT ==========
-                    Account account = accountRepository.findByEmail(email)
-                            .orElse(new Account());
-
-                    boolean isNew = (account.getId() == null);
-
-                    if (isNew) {
-                        account.setEmail(email);
-                        account.setCreateDate(new Date());
-                        account.setRole(deanRole);
-                        account.setStatus(AccountStatus.ACTIVE);
-                    }
-
-                    // Name (required)
-                    String name = getCellValue(row.getCell(headerMap.get("name")));
-                    if (name == null || name.isBlank()) {
-                        failedEmails.add(email);
-                        errors.add(email + ": Missing name");
-                        continue;
-                    }
-                    account.setName(name);
-
-                    // Password (optional, generate if not provided)
-                    if (headerMap.containsKey("password")) {
-                        String password = getCellValue(row.getCell(headerMap.get("password")));
-                        if (password != null && !password.isBlank()) {
-                            account.setPassword(passwordEncoder.encode(password));
-                        } else if (isNew) {
-                            // Generate temp password for new accounts
-                            generatedPassword = generateTempPassword(12);
-                            account.setPassword(passwordEncoder.encode(generatedPassword));
-                            passwordGenerated = true;
-                            System.out.println("Generated temp password for " + email + ": " + generatedPassword);
-                        }
-                    } else if (isNew) {
-                        generatedPassword = generateTempPassword(12);
-                        account.setPassword(passwordEncoder.encode(generatedPassword));
-                        passwordGenerated = true;
-                        System.out.println("Generated temp password for " + email + ": " + generatedPassword);
-                    }
-
-                    // Phone (optional)
-                    if (headerMap.containsKey("phone")) {
-                        account.setPhone(getCellValue(row.getCell(headerMap.get("phone"))));
-                    }
-
-                    // Age (optional)
-                    if (headerMap.containsKey("age")) {
-                        String ageStr = getCellValue(row.getCell(headerMap.get("age")));
-                        if (!ageStr.isEmpty()) {
-                            account.setAge(Integer.parseInt(ageStr));
-                        }
-                    }
-
-                    accountRepository.save(account);
-
-                    // ========== 2. TẠO/UPDATE COUNCIL MANAGER PROFILE ==========
-                    CouncilManagerProfile profile = councilProfileRepository
-                            .findByAccountId(account.getId())
-                            .orElse(new CouncilManagerProfile());
-
-                    if (profile.getId() == null) {
-                        profile.setAccount(account);
-                        profile.setStatus(CouncilManagerStatus.ACTIVE);
-                        profile.setStartDate(LocalDate.now());
-                    }
-
-                    // Major ID (required)
-                    String majorIdStr = getCellValue(row.getCell(headerMap.get("majorid")));
-                    if (majorIdStr == null || majorIdStr.isBlank()) {
-                        failedEmails.add(email);
-                        errors.add(email + ": Missing majorId");
-                        continue;
-                    }
-
-                    Integer majorId = Integer.parseInt(majorIdStr);
-                    Major major = majorRepository.findById(majorId)
-                            .orElseThrow(() -> new RuntimeException("Major not found: " + majorId));
-
-                    profile.setMajor(major);
-
-                    // Department (optional, default to major name)
-                    if (headerMap.containsKey("department")) {
-                        String dept = getCellValue(row.getCell(headerMap.get("department")));
-                        profile.setDepartment(dept != null && !dept.isBlank() ? dept : major.getName());
-                    } else {
-                        profile.setDepartment(major.getName());
-                    }
-
-                    // Employee Code (optional)
-                    if (headerMap.containsKey("employeecode")) {
-                        profile.setEmployeeCode(getCellValue(row.getCell(headerMap.get("employeecode"))));
-                    }
-
-                    // Position Title (optional)
-                    if (headerMap.containsKey("positiontitle")) {
-                        String position = getCellValue(row.getCell(headerMap.get("positiontitle")));
-                        profile.setPositionTitle(position != null && !position.isBlank()
-                                ? position
-                                : "Trưởng bộ môn " + major.getName());
-                    } else {
-                        profile.setPositionTitle("Trưởng bộ môn " + major.getName());
-                    }
-
-                    councilProfileRepository.save(profile);
-
-                    // ========== ⭐ BUILD DEAN DETAIL ==========
-                    ImportDeanResult.DeanDetail deanDetail = ImportDeanResult.DeanDetail.builder()
-                            // Account info
-                            .accountId(account.getId())
-                            .email(account.getEmail())
-                            .name(account.getName())
-                            .phone(account.getPhone())
-                            .age(account.getAge())
-                            .status(account.getStatus().toString())
-                            .role(account.getRole().getRoleName())
-
-                            // Profile info
-                            .profileId(profile.getId())
-                            .employeeCode(profile.getEmployeeCode())
-                            .positionTitle(profile.getPositionTitle())
-                            .department(profile.getDepartment())
-
-                            // Major info
-                            .majorId(major.getId())
-                            .majorName(major.getName())
-                            .majorCode(major.getCode())
-
-                            // Auto-generated info
-                            .isNewAccount(isNew)
-                            .passwordGenerated(passwordGenerated)
-                            .generatedPassword(passwordGenerated ? generatedPassword : null)
-
-                            .build();
-
-                    successDeans.add(deanDetail);
-                    successEmails.add(email);
-                    System.out.println("✅ Imported dean: " + email + " (Major: " + major.getName() + ")");
-
-                } catch (Exception e) {
-                    failedEmails.add(email);
-                    errors.add(email + ": " + e.getMessage());
-                    System.err.println("❌ Failed to import " + email + ": " + e.getMessage());
-                }
-            }
-
-            // ========== BUILD RESPONSE ==========
-            ImportDeanResult result = ImportDeanResult.builder()
-                    .totalRows(successEmails.size() + failedEmails.size())
-                    .successCount(successEmails.size())
-                    .failedCount(failedEmails.size())
-                    .successEmails(successEmails)
-                    .failedEmails(failedEmails)
-                    .errors(errors)
-                    .successDeans(successDeans)  // ⭐ THÊM
-                    .build();
-
-            String message = String.format(
-                    "Import completed: %d success, %d failed",
-                    successEmails.size(), failedEmails.size()
-            );
-
-            return ResponseDto.success(result, message);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseDto.fail("Error reading Excel file: " + e.getMessage());
-        }
-    }
+   
 
 }
