@@ -340,8 +340,13 @@ public class AccountService {
             String email,
             String role,
             AccountStatus status) {
-        
-        Pageable pageable = PageRequest.of(page - 1, size, Sort.by("createDate").descending());
+
+        // ⭐⭐⭐ THÊM SORT ĐỂ IMPORT MỚI LÊN TRANG 1
+        Pageable pageable = PageRequest.of(
+                page - 1,
+                size,
+                Sort.by("id").descending()  // ID lớn = tạo sau = lên đầu
+        );
 
         // Build Specification để filter
         Specification<Account> spec = buildAccountSpecification(name, email, role, status);
