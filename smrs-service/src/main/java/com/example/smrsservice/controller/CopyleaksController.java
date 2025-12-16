@@ -4,9 +4,12 @@ import com.example.smrsservice.service.CopyleaksService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 
 @RestController
 @RequestMapping("/api/plagiarism")
@@ -29,11 +32,13 @@ public class CopyleaksController {
             @PathVariable String scanId,
             @RequestBody Map<String, Object> body
     ) {
-        long newScanId = Long.parseLong(scanId) + 10000;
-        String finalScanId = String.valueOf(newScanId);
+        String finalScanId =
+                LocalDateTime.now()
+                        .format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
+                        + ThreadLocalRandom.current().nextInt(100, 999);
 
         String webhookUrl =
-                "https://smrs.space/api/plagiarism/webhook/status/{STATUS}/" + finalScanId;
+                "https://smrs.space/api/plagiarism/webhook/status/{STATUS}/" + scanId;
 
         Map<String, Object> properties = new HashMap<>();
         properties.put("sandbox", true);
@@ -55,10 +60,7 @@ public class CopyleaksController {
 
     @GetMapping("/result/{scanId}")
     public Object getResult(@PathVariable String scanId) {
-        long newScanId = Long.parseLong(scanId) + 10000;
-        String finalScanId = String.valueOf(newScanId);
-
-        return service.getByScanId(finalScanId);
+        return service.getByScanId(scanId);
     }
 }
 
