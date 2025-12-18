@@ -122,12 +122,6 @@ public class ProjectScoreService {
         }
     }
 
-    // ✅ XÓA METHOD CŨ NÀY (dòng ~111)
-    // public ResponseDto<List<ProjectScoreResponseDto>> getScoresByProject(Integer projectId) {
-    //     ...
-    // }
-
-    // ✅ GIỮ LẠI METHOD MỚI NÀY
     /**
      * Lấy tất cả scores của một project
      */

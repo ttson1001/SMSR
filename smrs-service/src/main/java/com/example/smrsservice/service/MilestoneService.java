@@ -127,17 +127,21 @@ public class MilestoneService {
         // Lấy user hiện tại
         Account currentUser = getCurrentAccount(authentication);
 
-        // Kiểm tra quyền: Chỉ owner của project mới được nộp report
-        if (!milestone.getProject().getOwner().getId().equals(currentUser.getId())) {
-            throw new RuntimeException("Only project owner can submit report");
+        // ✅ Kiểm tra quyền nộp report
+        if (Boolean.TRUE.equals(milestone.getIsFinal())) {
+            // Final report: Chỉ owner được nộp
+            if (!milestone.getProject().getOwner().getId().equals(currentUser.getId())) {
+                throw new RuntimeException("Only project owner can submit final report");
+            }
         }
+        // Report thường: Không cần kiểm tra quyền, ai cũng nộp được
 
         // Kiểm tra đã nộp report chưa
         if (milestone.getReportUrl() != null) {
             throw new RuntimeException("Report already submitted for this milestone");
         }
 
-        // ✅ THÊM: Kiểm tra bắt buộc phải có file
+        // ✅ Kiểm tra bắt buộc phải có file
         if (dto.getReportUrl() == null || dto.getReportUrl().trim().isEmpty()) {
             throw new RuntimeException("Bạn chưa nộp file báo cáo. Vui lòng tải file lên trước khi nộp.");
         }
