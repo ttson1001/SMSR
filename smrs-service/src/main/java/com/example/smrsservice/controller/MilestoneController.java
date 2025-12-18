@@ -6,6 +6,7 @@ import com.example.smrsservice.dto.milestone.MilestoneSubmitReportDto;
 import com.example.smrsservice.dto.milestone.MilestoneUpdateDto;
 import com.example.smrsservice.service.MilestoneService;
 import jakarta.annotation.security.PermitAll;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -53,7 +54,7 @@ public class MilestoneController {
     @PostMapping("/{id}/submit-report")
     public ResponseEntity<MilestoneResponseDto> submitReport(
             @PathVariable Integer id,
-            @RequestBody MilestoneSubmitReportDto dto,
+            @Valid @RequestBody MilestoneSubmitReportDto dto, 
             Authentication authentication) {
         return ResponseEntity.ok(milestoneService.submitReport(id, dto, authentication));
     }

@@ -104,15 +104,7 @@ public interface ProjectRepository extends JpaRepository<Project, Integer>, JpaS
             @Param("startDate") Date startDate,
             @Param("endDate") Date endDate);
 
-    /**
-     * Find ALL projects by status (no pagination - for stats)
-     */
-    List<Project> findAllByStatus(ProjectStatus status);
 
-    /**
-     * Find projects by multiple statuses
-     */
-    List<Project> findByStatusIn(List<ProjectStatus> statuses);
 
     /**
      * Find projects created between dates

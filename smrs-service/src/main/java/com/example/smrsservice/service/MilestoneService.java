@@ -137,6 +137,11 @@ public class MilestoneService {
             throw new RuntimeException("Report already submitted for this milestone");
         }
 
+        // ✅ THÊM: Kiểm tra bắt buộc phải có file
+        if (dto.getReportUrl() == null || dto.getReportUrl().trim().isEmpty()) {
+            throw new RuntimeException("Bạn chưa nộp file báo cáo. Vui lòng tải file lên trước khi nộp.");
+        }
+
         // Cập nhật thông tin report
         milestone.setReportUrl(dto.getReportUrl());
         milestone.setReportComment(dto.getReportComment());

@@ -29,7 +29,6 @@ public interface MilestoneRepository extends JpaRepository<Milestone, Integer> {
             @Param("isFinal") Boolean isFinal
     );
 
-    List<Milestone> findAllByProjectIdAndIsFinal(Integer projectId, Boolean isFinal);
 
     List<Milestone> findByIsFinalAndStatus(Boolean isFinal, String status);
 
