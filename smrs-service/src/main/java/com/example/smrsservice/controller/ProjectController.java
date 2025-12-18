@@ -10,6 +10,7 @@ import com.example.smrsservice.dto.score.ProjectScoreResponseDto;
 import com.example.smrsservice.service.MilestoneFinalReportService;
 import com.example.smrsservice.service.ProjectService;
 import com.example.smrsservice.service.ProjectScoreService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -223,6 +224,39 @@ public class ProjectController {
 
         ResponseDto<List<MentoringProjectDto>> response =
                 projectService.getMyMentoringProjects(authentication);
+
+        return ResponseEntity.status(
+                response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST
+        ).body(response);
+    }
+
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<ResponseDto<ProjectResponse>> rejectProject(
+            @PathVariable("id") Integer id,
+            @RequestBody @Valid RejectProjectRequest request,
+            Authentication authentication) {
+
+        ResponseDto<ProjectResponse> response = projectService.rejectProject(
+                id, request, authentication
+        );
+
+        return ResponseEntity.status(
+                response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST
+        ).body(response);
+    }
+
+    /**
+     * Nhóm nộp lại project sau khi sửa
+     */
+    @PostMapping("/{id}/resubmit")
+    public ResponseEntity<ResponseDto<ProjectResponse>> resubmitProject(
+            @PathVariable("id") Integer id,
+            @RequestBody ProjectResubmitRequest request,
+            Authentication authentication) {
+
+        ResponseDto<ProjectResponse> response = projectService.resubmitProject(
+                id, request, authentication
+        );
 
         return ResponseEntity.status(
                 response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST

@@ -166,4 +166,59 @@ public class MailService {
             System.err.println("Failed to send result email: " + e.getMessage());
         }
     }
+
+    public void sendProjectRevisionRequest(
+            String toEmail,
+            String userName,
+            String projectName,
+            String reason,
+            String feedback,
+            String deadline) {
+
+        String subject = "Dự án cần chỉnh sửa: " + projectName;
+
+        String body = "Xin chào " + userName + ",\n\n" +
+                "Dự án '" + projectName + "' của bạn cần được chỉnh sửa lại.\n\n" +
+                "Lý do: " + reason + "\n\n" +
+                (feedback != null && !feedback.isEmpty()
+                        ? "Nhận xét chi tiết:\n" + feedback + "\n\n"
+                        : "") +
+                "Deadline sửa lại: " + deadline + "\n\n" +
+                "Vui lòng sửa lại theo yêu cầu và nộp lại project trước deadline.\n" +
+                "Sau deadline, project sẽ tự động trả về kho cho các nhóm khác.\n\n" +
+                "Trân trọng,\nSMRS Team";
+
+        sendSimpleMail(toEmail, subject, body);
+    }
+
+    public void sendProjectRejectionNotification(
+            String toEmail,
+            String userName,
+            String projectName,
+            String reason,
+            String feedback) {
+
+        try {
+            String subject = "Dự án của bạn đã bị từ chối: " + projectName;
+
+            String body = "Xin chào " + userName + ",\n\n" +
+                    "Dự án '" + projectName + "' của bạn đã bị từ chối.\n\n" +
+                    "Lý do: " + reason + "\n\n" +
+                    (feedback != null && !feedback.isEmpty()
+                            ? "Nhận xét chi tiết:\n" + feedback + "\n\n"
+                            : "") +
+                    "Dự án đã được trả về trạng thái ARCHIVED.\n" +
+                    "Các nhóm khác có thể chọn dự án này nếu bạn không thể tiếp tục.\n\n" +
+                    "Nếu bạn vẫn muốn tiếp tục, vui lòng chọn lại dự án và chuẩn bị tốt hơn.\n\n" +
+                    "Trân trọng,\nSMRS Team";
+
+            sendSimpleMail(toEmail, subject, body);
+
+            System.out.println("✅ Rejection notification email sent to: " + toEmail);
+
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send rejection notification email: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 }

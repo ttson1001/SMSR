@@ -76,6 +76,16 @@ public class Project {
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL)
     private List<ProjectCouncil> projectCouncils = new ArrayList<>();  // ✅ ProjectCouncil
 
+    @Column(name = "rejection_reason", columnDefinition = "TEXT")
+    private String rejectionReason;
+
+    @Column(name = "rejection_feedback", columnDefinition = "TEXT")
+    private String rejectionFeedback;
+
+    @Column(name = "revision_deadline")
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date revisionDeadline;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "major_id")
     private Major major;

@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 public enum ProjectStatus {
     AVAILABLE("Available"),
     PENDING("Pending"),
+    REVISION_REQUIRED("RevisionRequired"),  // ⭐ THÊM MỚI
     IN_REVIEW("InReview"),
     APPROVED("Approved"),
     REJECTED("Rejected"),
@@ -36,17 +37,22 @@ public enum ProjectStatus {
         throw new IllegalArgumentException("Invalid status: " + value);
     }
 
-    // ✅ CẬP NHẬT: Thêm logic chuyển đổi cho AVAILABLE
     public boolean canTransitionTo(ProjectStatus target) {
         if (this == target) return true;
         return switch (this) {
-            case AVAILABLE -> target == PENDING || target == CANCELLED || target == ARCHIVED;  // ✅ THÊM
-            case PENDING -> target == IN_REVIEW || target == CANCELLED || target == AVAILABLE;  // ✅ Có thể quay lại AVAILABLE
+            case AVAILABLE -> target == PENDING || target == CANCELLED || target == ARCHIVED;
+            case PENDING -> target == IN_REVIEW
+                    || target == REVISION_REQUIRED
+                    || target == ARCHIVED
+                    || target == CANCELLED
+                    || target == AVAILABLE;
+            case REVISION_REQUIRED -> target == PENDING
+                    || target == ARCHIVED;
             case IN_REVIEW -> target == APPROVED || target == REJECTED || target == CANCELLED;
             case APPROVED -> target == IN_PROGRESS || target == CANCELLED;
             case IN_PROGRESS -> target == COMPLETED || target == CANCELLED;
-            case REJECTED -> target == AVAILABLE || target == CANCELLED;  // ✅ Có thể mở lại cho người khác
-            case ARCHIVED -> target == AVAILABLE || target == PENDING;  // ✅ Có thể kích hoạt lại
+            case REJECTED -> target == AVAILABLE || target == CANCELLED;
+            case ARCHIVED -> target == AVAILABLE || target == PENDING;
             case COMPLETED, CANCELLED -> false;
         };
     }
@@ -55,12 +61,10 @@ public enum ProjectStatus {
         return this == COMPLETED || this == CANCELLED;
     }
 
-    // ✅ THÊM: Kiểm tra project có thể đăng ký không
     public boolean isAvailableForRegistration() {
         return this == AVAILABLE;
     }
 
-    // ✅ THÊM: Kiểm tra project đã có owner chưa
     public boolean hasOwner() {
         return this != AVAILABLE && this != ARCHIVED;
     }

@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 
 @Data
@@ -36,6 +37,10 @@ public class ProjectResponse {
     private MentorInfo mentor;
     private List<StudentInfo> students;
     private Boolean hasFinalReport;
+
+    private String rejectionReason;     // Lý do reject
+    private String rejectionFeedback;   // Nhận xét chi tiết
+    private Date revisionDeadline;
 
     @Data
     @Builder
