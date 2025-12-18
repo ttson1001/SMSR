@@ -138,13 +138,16 @@ public class ProjectService {
     private Set<Integer> getMyProjectIds(Integer userId) {
         Set<Integer> projectIds = new HashSet<>();
 
+
         List<Project> ownedProjects = projectRepository.findByOwnerId(userId);
         projectIds.addAll(ownedProjects.stream()
                 .map(Project::getId)
                 .collect(Collectors.toSet()));
 
+        // Chỉ lấy projects mà user là member VÀ đã Approved
         List<ProjectMember> memberProjects = projectMemberRepository.findByAccountId(userId);
         projectIds.addAll(memberProjects.stream()
+                .filter(pm -> "Approved".equals(pm.getStatus()))  
                 .map(pm -> pm.getProject().getId())
                 .collect(Collectors.toSet()));
 

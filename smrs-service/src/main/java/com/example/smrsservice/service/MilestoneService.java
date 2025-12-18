@@ -134,7 +134,6 @@ public class MilestoneService {
                 throw new RuntimeException("Only project owner can submit final report");
             }
         }
-        // Report thường: Không cần kiểm tra quyền, ai cũng nộp được
 
         // Kiểm tra đã nộp report chưa
         if (milestone.getReportUrl() != null) {
