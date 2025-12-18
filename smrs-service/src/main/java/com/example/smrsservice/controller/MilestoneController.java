@@ -54,7 +54,7 @@ public class MilestoneController {
     @PostMapping("/{id}/submit-report")
     public ResponseEntity<MilestoneResponseDto> submitReport(
             @PathVariable Integer id,
-            @Valid @RequestBody MilestoneSubmitReportDto dto, 
+            @Valid @RequestBody MilestoneSubmitReportDto dto,
             Authentication authentication) {
         return ResponseEntity.ok(milestoneService.submitReport(id, dto, authentication));
     }
