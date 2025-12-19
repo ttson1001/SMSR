@@ -250,13 +250,11 @@ public class ProjectService {
             project.setIsCreatedByDean(isAdminOrDean);
 
             if (isAdminOrDean) {
-                // ✅ ADMIN/DEAN tạo dự án → Không có owner, trạng thái ARCHIVED
                 project.setOwner(null);
                 project.setStatus(ProjectStatus.ARCHIVED);
                 System.out.println("✅ ADMIN/DEAN created project: " + dto.getName()
                         + " (ARCHIVED, no owner - ready for students to pick)");
             } else {
-                // ✅ LECTURER/STUDENT tạo dự án → Trở thành owner
                 project.setOwner(currentUser);
                 project.setStatus(ProjectStatus.PENDING);
                 System.out.println("✅ " + roleName + " created project: " + dto.getName()
@@ -290,22 +288,6 @@ public class ProjectService {
 
             projectRepository.save(project);
 
-            // ⭐⭐⭐ TỰ ĐỘNG TẠO ProjectMember CHO OWNER ⭐⭐⭐
-            if (!isAdminOrDean) {
-                ProjectMember ownerMember = new ProjectMember();
-                ownerMember.setProject(project);
-                ownerMember.setAccount(currentUser);
-                ownerMember.setStatus("Approved"); // Owner tự động approved
-
-                // ⭐ QUAN TRỌNG: memberRole = ĐÚNG ROLE THỰC TẾ CỦA NGƯỜI TẠO
-                ownerMember.setMemberRole(roleName.toUpperCase()); // LECTURER hoặc STUDENT
-                projectMemberRepository.save(ownerMember);
-
-                System.out.println("✅ Auto-added owner as " + roleName.toUpperCase()
-                        + " (team leader): " + currentUser.getEmail());
-            }
-
-            // ✅ Mời thêm thành viên khác (nếu có)
             if (!isAdminOrDean && dto.getInvitedEmails() != null && !dto.getInvitedEmails().isEmpty()) {
                 inviteMembers(project, dto.getInvitedEmails(), currentUser);
             }
@@ -314,7 +296,7 @@ public class ProjectService {
 
             String message = isAdminOrDean
                     ? "Project created as ARCHIVED (ready for students to pick)"
-                    : "Project created successfully. You are the team leader.";
+                    : "Project created successfully";
 
             return ResponseDto.success(res, message);
 
