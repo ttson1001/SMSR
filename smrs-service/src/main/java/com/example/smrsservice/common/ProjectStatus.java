@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 public enum ProjectStatus {
     AVAILABLE("Available"),
     PENDING("Pending"),
-    REVISION_REQUIRED("RevisionRequired"),  // ⭐ THÊM MỚI
+    REVISION_REQUIRED("RevisionRequired"),
     IN_REVIEW("InReview"),
     APPROVED("Approved"),
     REJECTED("Rejected"),
