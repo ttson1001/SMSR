@@ -1479,6 +1479,9 @@ public class ProjectService {
     }
 
 
+    /**
+     * Dean/Admin reject project
+     */
     public ResponseDto<ProjectResponse> rejectProject(
             Integer projectId,
             RejectProjectRequest request,
@@ -1496,102 +1499,10 @@ public class ProjectService {
                 return ResponseDto.fail("Only Dean/Admin can reject projects");
             }
 
-            // ✅ Lấy project
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new RuntimeException("Project not found"));
+            // ✅ Gọi method transaction riêng
+            Project updated = performRejectProject(projectId, request);
 
-            if (project.getStatus() != ProjectStatus.PENDING) {
-                return ResponseDto.fail("Only PENDING projects can be rejected");
-            }
-
-            Account currentOwner = project.getOwner();
-
-            // ✅ Lưu rejection info
-            project.setRejectionReason(request.getReason());
-            project.setRejectionFeedback(request.getFeedback());
-
-            String message;
-
-            // ⭐ XỬ LÝ THEO LOẠI REJECT
-            if (request.getRejectType() == RejectType.REVISION) {
-                // ═══════════════════════════════════════════════════
-                // LOẠI 1: CHO CƠ HỘI SỬA LẠI
-                // ═══════════════════════════════════════════════════
-
-                project.setStatus(ProjectStatus.REVISION_REQUIRED);
-                // ⭐ GIỮ NGUYÊN OWNER (không reset)
-
-                // Tính deadline (mặc định 7 ngày nếu không chỉ định)
-                int days = (request.getRevisionDays() != null && request.getRevisionDays() > 0)
-                        ? request.getRevisionDays()
-                        : 2;
-
-                Calendar cal = Calendar.getInstance();
-                cal.add(Calendar.DAY_OF_MONTH, days);
-                project.setRevisionDeadline(cal.getTime());
-
-                projectRepository.save(project);
-
-                // Gửi email thông báo sửa lại
-                if (currentOwner != null) {
-                    try {
-                        SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
-                        mailService.sendProjectRevisionRequest(
-                                currentOwner.getEmail(),
-                                currentOwner.getName(),
-                                project.getName(),
-                                request.getReason(),
-                                request.getFeedback(),
-                                sdf.format(project.getRevisionDeadline())
-                        );
-                    } catch (Exception e) {
-                        System.err.println("Failed to send email: " + e.getMessage());
-                    }
-                }
-
-                message = String.format(
-                        "Project requires revision. Team has %d days to resubmit (deadline: %s)",
-                        days,
-                        new SimpleDateFormat("dd/MM/yyyy").format(project.getRevisionDeadline())
-                );
-
-                System.out.println("✅ Project requires revision: " + project.getName()
-                        + " | Owner: " + (currentOwner != null ? currentOwner.getEmail() : "N/A")
-                        + " | Deadline: " + project.getRevisionDeadline());
-
-            } else {
-                // ═══════════════════════════════════════════════════
-                // LOẠI 2: TRẢ VỀ KHO
-                // ═══════════════════════════════════════════════════
-
-                project.setStatus(ProjectStatus.ARCHIVED);
-                project.setOwner(null);  // ⭐ RESET OWNER
-                project.setRevisionDeadline(null);
-
-                projectRepository.save(project);
-
-                // Gửi email thông báo mất quyền
-                if (currentOwner != null) {
-                    try {
-                        mailService.sendProjectRejectionNotification(
-                                currentOwner.getEmail(),
-                                currentOwner.getName(),
-                                project.getName(),
-                                request.getReason(),
-                                request.getFeedback()
-                        );
-                    } catch (Exception e) {
-                        System.err.println("Failed to send email: " + e.getMessage());
-                    }
-                }
-
-                message = "Project returned to ARCHIVED. Other teams can now pick it.";
-
-                System.out.println("✅ Project returned to ARCHIVED: " + project.getName()
-                        + " | Previous owner: " + (currentOwner != null ? currentOwner.getEmail() : "N/A"));
-            }
-
-            return ResponseDto.success(toResponse(project), message);
+            return ResponseDto.success(toResponse(updated), "Project processed successfully");
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -1600,9 +1511,110 @@ public class ProjectService {
     }
 
     /**
+     * Method riêng xử lý DB transaction cho reject
+     */
+    @Transactional
+    protected Project performRejectProject(Integer projectId, RejectProjectRequest request) {
+        // ✅ Lấy project
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found"));
+
+        if (project.getStatus() != ProjectStatus.PENDING) {
+            throw new RuntimeException("Only PENDING projects can be rejected");
+        }
+
+        Account currentOwner = project.getOwner();
+
+        // ✅ Lưu rejection info
+        project.setRejectionReason(request.getReason());
+        project.setRejectionFeedback(request.getFeedback());
+
+        // ⭐ XỬ LÝ THEO LOẠI REJECT
+        if (request.getRejectType() == RejectType.REVISION) {
+            // ═══════════════════════════════════════════════════
+            // LOẠI 1: CHO CƠ HỘI SỬA LẠI
+            // ═══════════════════════════════════════════════════
+
+            project.setStatus(ProjectStatus.REVISION_REQUIRED);
+            // ⭐ GIỮ NGUYÊN OWNER (không reset)
+
+            // Tính deadline (mặc định 2 ngày nếu không chỉ định)
+            int days = (request.getRevisionDays() != null && request.getRevisionDays() > 0)
+                    ? request.getRevisionDays()
+                    : 2;
+
+            Calendar cal = Calendar.getInstance();
+            cal.add(Calendar.DAY_OF_MONTH, days);
+            project.setRevisionDeadline(cal.getTime());
+
+            System.out.println("✅ Project requires revision: " + project.getName()
+                    + " | Owner: " + (currentOwner != null ? currentOwner.getEmail() : "N/A")
+                    + " | Deadline: " + project.getRevisionDeadline());
+
+        } else {
+            // ═══════════════════════════════════════════════════
+            // LOẠI 2: TRẢ VỀ KHO
+            // ═══════════════════════════════════════════════════
+
+            project.setStatus(ProjectStatus.ARCHIVED);
+            project.setOwner(null);  // ⭐ RESET OWNER
+            project.setRevisionDeadline(null);
+
+            System.out.println("✅ Project returned to ARCHIVED: " + project.getName()
+                    + " | Previous owner: " + (currentOwner != null ? currentOwner.getEmail() : "N/A"));
+        }
+
+        // ✅ Lưu vào DB
+        Project saved = projectRepository.save(project);
+
+        // ✅ Gửi email SAU KHI transaction commit
+        sendRejectionEmailAsync(saved, currentOwner, request);
+
+        return saved;
+    }
+
+    /**
+     * Gửi email rejection (không trong transaction)
+     */
+    private void sendRejectionEmailAsync(Project project, Account owner, RejectProjectRequest request) {
+        if (owner == null) return;
+
+        try {
+            SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+
+            if (project.getStatus() == ProjectStatus.REVISION_REQUIRED) {
+                // Email cho REVISION
+                mailService.sendProjectRevisionRequest(
+                        owner.getEmail(),
+                        owner.getName(),
+                        project.getName(),
+                        request.getReason(),
+                        request.getFeedback(),
+                        sdf.format(project.getRevisionDeadline())
+                );
+                System.out.println("📧 Sent revision email to: " + owner.getEmail());
+
+            } else {
+                // Email cho ARCHIVED
+                mailService.sendProjectRejectionNotification(
+                        owner.getEmail(),
+                        owner.getName(),
+                        project.getName(),
+                        request.getReason(),
+                        request.getFeedback()
+                );
+                System.out.println("📧 Sent rejection email to: " + owner.getEmail());
+            }
+
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to send email: " + e.getMessage());
+            // Email fail không ảnh hưởng transaction
+        }
+    }
+
+    /**
      * Nhóm nộp lại project sau khi sửa (chỉ cho REVISION_REQUIRED)
      */
-    
     public ResponseDto<ProjectResponse> resubmitProject(
             Integer projectId,
             ProjectResubmitRequest request,
@@ -1610,62 +1622,11 @@ public class ProjectService {
         try {
             Account currentUser = currentAccount(authentication);
 
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new RuntimeException("Project not found"));
-
-            // ✅ Kiểm tra status
-            if (project.getStatus() != ProjectStatus.REVISION_REQUIRED) {
-                return ResponseDto.fail("Only projects with REVISION_REQUIRED status can be resubmitted");
-            }
-
-            // ✅ Kiểm tra quyền (phải là owner)
-            if (project.getOwner() == null || !project.getOwner().getId().equals(currentUser.getId())) {
-                return ResponseDto.fail("Only project owner can resubmit");
-            }
-
-            // ✅ Kiểm tra deadline
-            if (project.getRevisionDeadline() != null
-                    && new Date().after(project.getRevisionDeadline())) {
-                // Quá deadline → Tự động trả về ARCHIVED
-                project.setStatus(ProjectStatus.ARCHIVED);
-                project.setOwner(null);
-                project.setRevisionDeadline(null);
-                projectRepository.save(project);
-
-                return ResponseDto.fail("Revision deadline has passed. Project returned to ARCHIVED.");
-            }
-
-            // ✅ Cập nhật description/files nếu có
-            if (request.getDescription() != null) {
-                project.setDescription(request.getDescription());
-            }
-
-            if (request.getFiles() != null && !request.getFiles().isEmpty()) {
-                project.getFiles().clear();
-                for (ProjectResubmitRequest.FileDto f : request.getFiles()) {
-                    ProjectFile file = new ProjectFile();
-                    file.setFilePath(f.getFilePath());
-                    file.setType(f.getType());
-                    file.setProject(project);
-                    project.getFiles().add(file);
-                }
-            }
-
-            // ⭐ ĐỔI STATUS TRỞ LẠI PENDING
-            project.setStatus(ProjectStatus.PENDING);
-            project.setRevisionDeadline(null);  // Clear deadline
-
-            // ⭐ XÓA REJECTION INFO (đã sửa rồi)
-            project.setRejectionReason(null);
-            project.setRejectionFeedback(null);
-
-            projectRepository.save(project);
-
-            System.out.println("✅ Project resubmitted: " + project.getName()
-                    + " | Owner: " + currentUser.getEmail());
+            // ✅ Gọi method transaction riêng
+            Project updated = performResubmit(projectId, request, currentUser);
 
             return ResponseDto.success(
-                    toResponse(project),
+                    toResponse(updated),
                     "Project resubmitted successfully. Waiting for review."
             );
 
@@ -1673,5 +1634,67 @@ public class ProjectService {
             e.printStackTrace();
             return ResponseDto.fail(e.getMessage());
         }
+    }
+
+    /**
+     * Method riêng xử lý DB transaction cho resubmit
+     */
+    @Transactional
+    protected Project performResubmit(Integer projectId, ProjectResubmitRequest request, Account currentUser) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found"));
+
+        // ✅ Kiểm tra status
+        if (project.getStatus() != ProjectStatus.REVISION_REQUIRED) {
+            throw new RuntimeException("Only projects with REVISION_REQUIRED status can be resubmitted");
+        }
+
+        // ✅ Kiểm tra quyền (phải là owner)
+        if (project.getOwner() == null || !project.getOwner().getId().equals(currentUser.getId())) {
+            throw new RuntimeException("Only project owner can resubmit");
+        }
+
+        // ✅ Kiểm tra deadline
+        if (project.getRevisionDeadline() != null && new Date().after(project.getRevisionDeadline())) {
+            // Quá deadline → Tự động trả về ARCHIVED
+            project.setStatus(ProjectStatus.ARCHIVED);
+            project.setOwner(null);
+            project.setRevisionDeadline(null);
+            projectRepository.save(project);
+
+            throw new RuntimeException("Revision deadline has passed. Project returned to ARCHIVED.");
+        }
+
+        // ✅ Cập nhật description nếu có
+        if (request.getDescription() != null) {
+            project.setDescription(request.getDescription());
+        }
+
+        // ✅ Cập nhật files nếu có
+        if (request.getFiles() != null && !request.getFiles().isEmpty()) {
+            project.getFiles().clear();
+            for (ProjectResubmitRequest.FileDto f : request.getFiles()) {
+                ProjectFile file = new ProjectFile();
+                file.setFilePath(f.getFilePath());
+                file.setType(f.getType());
+                file.setProject(project);
+                project.getFiles().add(file);
+            }
+        }
+
+        // ⭐ ĐỔI STATUS TRỞ LẠI PENDING
+        project.setStatus(ProjectStatus.PENDING);
+        project.setRevisionDeadline(null);  // Clear deadline
+
+        // ⭐ XÓA REJECTION INFO (đã sửa rồi)
+        project.setRejectionReason(null);
+        project.setRejectionFeedback(null);
+
+        Project saved = projectRepository.save(project);
+
+        System.out.println("✅ Project resubmitted: " + saved.getName()
+                + " | Owner: " + currentUser.getEmail());
+
+        return saved;
     }
 }
