@@ -544,6 +544,8 @@ public class ProjectService {
                 .rejectionReason(p.getRejectionReason())
                 .rejectionFeedback(p.getRejectionFeedback())
                 .revisionDeadline(p.getRevisionDeadline())
+                .isCreatedByDean(p.getIsCreatedByDean())
+
 
                 .build();
     }

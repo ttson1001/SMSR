@@ -41,6 +41,7 @@ public class ProjectResponse {
     private String rejectionReason;     // Lý do reject
     private String rejectionFeedback;   // Nhận xét chi tiết
     private Date revisionDeadline;
+    private Boolean isCreatedByDean;
 
     @Data
     @Builder
