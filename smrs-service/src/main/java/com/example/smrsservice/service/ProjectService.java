@@ -247,6 +247,8 @@ public class ProjectService {
             project.setType(dto.getType());
             project.setDueDate(dto.getDueDate());
 
+            project.setIsCreatedByDean(isAdminOrDean);
+
             if (isAdminOrDean) {
                 project.setOwner(null);
                 project.setStatus(ProjectStatus.ARCHIVED);
@@ -1520,7 +1522,7 @@ public class ProjectService {
                 // Tính deadline (mặc định 7 ngày nếu không chỉ định)
                 int days = (request.getRevisionDays() != null && request.getRevisionDays() > 0)
                         ? request.getRevisionDays()
-                        : 7;
+                        : 2;
 
                 Calendar cal = Calendar.getInstance();
                 cal.add(Calendar.DAY_OF_MONTH, days);

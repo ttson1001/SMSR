@@ -90,6 +90,9 @@ public class Project {
     @JoinColumn(name = "major_id")
     private Major major;
 
+    @Column(name = "is_created_by_dean")
+    private Boolean isCreatedByDean;
+
     // ✅ HELPER METHODS
     public void addFile(ProjectFile file) {
         files.add(file);
