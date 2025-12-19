@@ -24,7 +24,7 @@ public class SwaggerConfig {
                         .description("Swagger UI for JWT Authentication")
                         .version("1.0.0"))
                 .servers(List.of(
-//                        new Server().url("https://smrs.space").description("Production server"),
+                        new Server().url("https://smrs.space").description("Production server"),
                         new Server().url("http://localhost:8080").description("Local dev server")
                 ))
                 .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
