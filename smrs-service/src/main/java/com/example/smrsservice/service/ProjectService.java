@@ -1478,7 +1478,7 @@ public class ProjectService {
         }
     }
 
-    @Transactional
+
     public ResponseDto<ProjectResponse> rejectProject(
             Integer projectId,
             RejectProjectRequest request,
@@ -1602,7 +1602,7 @@ public class ProjectService {
     /**
      * Nhóm nộp lại project sau khi sửa (chỉ cho REVISION_REQUIRED)
      */
-    @Transactional
+    
     public ResponseDto<ProjectResponse> resubmitProject(
             Integer projectId,
             ProjectResubmitRequest request,
