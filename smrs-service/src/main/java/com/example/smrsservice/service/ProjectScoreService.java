@@ -31,6 +31,8 @@ public class ProjectScoreService {
     private final AccountRepository accountRepository;
     private final MilestoneRepository milestoneRepository;
 
+
+
     @Transactional
     public ResponseDto<ProjectScoreResponseDto> createScore(
             ProjectScoreCreateDto dto,
@@ -56,6 +58,7 @@ public class ProjectScoreService {
             if (!milestone.getProject().getId().equals(dto.getProjectId())) {
                 return ResponseDto.fail("This final milestone does not belong to the given project");
             }
+
 
             if (projectScoreRepository.existsByFinalMilestoneIdAndLecturerId(dto.getFinalReportId(), lecturer.getId())) {
                 return ResponseDto.fail("You have already scored this final milestone");

@@ -112,7 +112,7 @@ public class MilestoneService {
     }
 
     /**
-     * Leader nộp report cho milestone
+     * Thành viên nhóm nộp report cho milestone
      */
     @Transactional
     public MilestoneResponseDto submitReport(
@@ -127,12 +127,20 @@ public class MilestoneService {
         // Lấy user hiện tại
         Account currentUser = getCurrentAccount(authentication);
 
-        // ✅ Kiểm tra quyền nộp report
-        if (Boolean.TRUE.equals(milestone.getIsFinal())) {
-            // Final report: Chỉ owner được nộp
-            if (!milestone.getProject().getOwner().getId().equals(currentUser.getId())) {
-                throw new RuntimeException("Only project owner can submit final report");
-            }
+        // ✅ Kiểm tra quyền nộp report - Tất cả thành viên đều được nộp
+        Project project = milestone.getProject();
+
+        // Kiểm tra owner
+        boolean isOwner = project.getOwner() != null &&
+                project.getOwner().getId().equals(currentUser.getId());
+
+        // Kiểm tra member
+        boolean isMember = project.getMembers() != null &&
+                project.getMembers().stream()
+                        .anyMatch(m -> m.getAccount().getId().equals(currentUser.getId()));
+
+        if (!isOwner && !isMember) {
+            throw new RuntimeException("Only project members can submit milestone report");
         }
 
         // Kiểm tra đã nộp report chưa

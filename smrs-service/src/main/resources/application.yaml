@@ -46,6 +46,7 @@ spring:
 app:
   base-url: https://smrs.space
 
+
 copyleaks:
   email: baovhde150401@fpt.edu.vn
   key: d7043682-78f9-4e1a-a262-fec1e38612b5
