@@ -16,20 +16,18 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.server.ResponseStatusException;
+
 
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -651,13 +649,14 @@ public class ProjectService {
                         .name(project.getMajor().getName())
                         .build();
             }
+            ProjectStatus displayStatus = calculateDisplayStatus(project);
 
             ProjectDetailResponse response = ProjectDetailResponse.builder()
                     .id(project.getId())
                     .name(project.getName())
                     .description(project.getDescription())
                     .type(project.getType())
-                    .status(project.getStatus())
+                    .status(displayStatus)
                     .createDate(project.getCreateDate())
                     .dueDate(project.getDueDate())
                     .owner(ownerInfo)
