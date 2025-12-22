@@ -40,7 +40,7 @@ public class CopyleaksController {
                 "https://smrs.space/api/plagiarism/webhook/status/{STATUS}/" + scanId;
 
         Map<String, Object> properties = new HashMap<>();
-        properties.put("sandbox", true);
+        properties.put("sandbox", false);
         properties.put("webhooks", Map.of("status", webhookUrl));
 
         body.put("properties", properties);
