@@ -516,6 +516,7 @@ public class ProjectService {
                     : null;
         }
 
+        ProjectStatus displayStatus = calculateDisplayStatus(p);
         return ProjectResponse.builder()
                 .id(p.getId())
                 .name(p.getName())
@@ -528,7 +529,7 @@ public class ProjectService {
                 .ownerEmail(ownerEmail)
                 .ownerRole(ownerRole)
 
-                .status(p.getStatus())
+                .status(displayStatus)
                 .majorId(p.getMajor() != null ? p.getMajor().getId() : null)
                 .majorName(p.getMajor() != null ? p.getMajor().getName() : null)
                 .createdAt(createdAt)
@@ -1696,5 +1697,21 @@ public class ProjectService {
                 + " | Owner: " + currentUser.getEmail());
 
         return saved;
+    }
+
+
+    private ProjectStatus calculateDisplayStatus(Project project) {
+        // Chỉ xử lý khi status là IN_REVIEW
+        if (project.getStatus() == ProjectStatus.IN_REVIEW) {
+            // Kiểm tra xem project đã có điểm chưa
+            long scoreCount = projectScoreRepository.countByProjectId(project.getId());
+
+            if (scoreCount > 0) {
+                return ProjectStatus.SCORED;  // Đã có điểm → trả về SCORED
+            }
+        }
+
+        // Các trường hợp khác: trả về status gốc
+        return project.getStatus();
     }
 }

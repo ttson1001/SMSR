@@ -41,4 +41,8 @@ public interface ProjectScoreRepository extends JpaRepository<ProjectScore, Inte
     @Query("SELECT COUNT(cm) FROM CouncilMember cm WHERE cm.council.id = :councilId")
     long countCouncilMembers(@Param("councilId") Integer councilId);
 
+    long countByProjectId(Integer projectId);
+
+   
+
 }

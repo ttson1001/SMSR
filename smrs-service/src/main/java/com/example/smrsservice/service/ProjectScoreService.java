@@ -1,6 +1,5 @@
 package com.example.smrsservice.service;
 
-import com.example.smrsservice.common.ProjectStatus;
 import com.example.smrsservice.dto.common.ResponseDto;
 import com.example.smrsservice.dto.score.ProjectScoreCreateDto;
 import com.example.smrsservice.dto.score.ProjectScoreResponseDto;
@@ -86,10 +85,6 @@ public class ProjectScoreService {
 
             projectScoreRepository.save(score);
 
-            if (ProjectStatus.IN_REVIEW.equals(project.getStatus())) {
-                project.setStatus(ProjectStatus.SCORED);
-                projectRepository.save(project);
-            }
 
             return ResponseDto.success(toResponseDto(score), "Score created successfully");
 
