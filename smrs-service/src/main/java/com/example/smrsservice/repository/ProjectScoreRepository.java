@@ -32,4 +32,13 @@ public interface ProjectScoreRepository extends JpaRepository<ProjectScore, Inte
     @Query("SELECT ps FROM ProjectScore ps WHERE ps.lecturer.id = :lecturerId ORDER BY ps.scoreDate DESC")
     List<ProjectScore> findByLecturerId(@Param("lecturerId") Integer lecturerId);
 
+    @Query("SELECT COUNT(ps) FROM ProjectScore ps WHERE ps.finalMilestone.id = :finalMilestoneId")
+    long countByFinalMilestoneId(@Param("finalMilestoneId") Integer finalMilestoneId);
+
+    /**
+     * Đếm số thành viên trong council của project
+     */
+    @Query("SELECT COUNT(cm) FROM CouncilMember cm WHERE cm.council.id = :councilId")
+    long countCouncilMembers(@Param("councilId") Integer councilId);
+
 }

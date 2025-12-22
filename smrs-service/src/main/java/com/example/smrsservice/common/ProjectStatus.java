@@ -11,6 +11,8 @@ public enum ProjectStatus {
     APPROVED("Approved"),
     REJECTED("Rejected"),
     IN_PROGRESS("InProgress"),
+    SCORING("Scoring"),              // *** THÊM: Đang chấm điểm ***
+    SCORED("Scored"),                // *** THÊM: Đã chấm điểm ***
     COMPLETED("Completed"),
     CANCELLED("Cancelled"),
     ARCHIVED("Archived");
@@ -50,7 +52,9 @@ public enum ProjectStatus {
                     || target == ARCHIVED;
             case IN_REVIEW -> target == APPROVED || target == REJECTED || target == CANCELLED;
             case APPROVED -> target == IN_PROGRESS || target == CANCELLED;
-            case IN_PROGRESS -> target == COMPLETED || target == CANCELLED;
+            case IN_PROGRESS -> target == SCORING || target == CANCELLED;           // *** CẬP NHẬT ***
+            case SCORING -> target == SCORED || target == CANCELLED;                // *** THÊM ***
+            case SCORED -> target == COMPLETED || target == CANCELLED;              // *** THÊM ***
             case REJECTED -> target == AVAILABLE || target == CANCELLED;
             case ARCHIVED -> target == AVAILABLE || target == PENDING;
             case COMPLETED, CANCELLED -> false;
